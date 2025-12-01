@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+go mod download
+go mod tidy
+
+gofmt -s -w .
+fmt_out=$(gofmt -s -l . || true)
+if [ -n "$fmt_out" ]; then
+  echo "$fmt_out" && exit 1
+fi
+
+goimports -w .
+imports_out=$(goimports -l . || true)
+if [ -n "$imports_out" ]; then
+  echo "$imports_out" && exit 1
+fi
+
+go vet ./...
+
+golangci-lint run ./...
+
+go test -race -count=0 ./...

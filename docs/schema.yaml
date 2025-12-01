@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: Sufir's Keeper Server API
-  description: Серверное API системы, позволяющую пользователю надёжно и безопасно хранить логины, пароли, бинарные данные и прочую приватную информацию.
+  description: Серверное API системы, позволяющей пользователю надёжно и безопасно хранить логины, пароли, бинарные данные и прочую приватную информацию.
   version: 1.0.0
 
 servers:
@@ -385,8 +385,12 @@ components:
 
     CredentialData:
       type: object
-      required: [login, password]
+      required: [type, login, password]
       properties:
+        type:
+          type: string
+          enum: [CREDENTIAL]
+          description: Тип варианта данных для дискриминатора
         login:
           type: string
           minLength: 1
@@ -400,8 +404,12 @@ components:
 
     CardData:
       type: object
-      required: [card_number, card_holder, expiry_date, cvv]
+      required: [type, card_number, card_holder, expiry_date, cvv]
       properties:
+        type:
+          type: string
+          enum: [CARD]
+          description: Тип варианта данных для дискриминатора
         card_number:
           type: string
           pattern: '^[0-9]{16}$'
@@ -423,8 +431,12 @@ components:
 
     TextData:
       type: object
-      required: [value]
+      required: [type, value]
       properties:
+        type:
+          type: string
+          enum: [TEXT]
+          description: Тип варианта данных для дискриминатора
         value:
           type: string
           minLength: 1
@@ -433,8 +445,12 @@ components:
 
     BinaryData:
       type: object
-      required: [filename, id]
+      required: [type, filename, id]
       properties:
+        type:
+          type: string
+          enum: [BINARY]
+          description: Тип варианта данных для дискриминатора
         filename:
           type: string
           minLength: 1
@@ -447,10 +463,8 @@ components:
 
     ItemCreate:
       type: object
-      required: [type, title, data]
+      required: [title, data]
       properties:
-        type:
-          $ref: '#/components/schemas/ItemType'
         title:
           type: string
           minLength: 1
@@ -507,8 +521,6 @@ components:
           type: string
           format: uuid
           example: "123e4567-e89b-12d3-a456-426614174000"
-        type:
-          $ref: '#/components/schemas/ItemType'
         title:
           type: string
           example: "Мой пароль от Gmail"
@@ -535,8 +547,6 @@ components:
           type: string
           format: uuid
           example: "123e4567-e89b-12d3-a456-426614174000"
-        type:
-          $ref: '#/components/schemas/ItemType'
         title:
           type: string
           example: "Мой пароль от Gmail"

@@ -1,0 +1,25 @@
+name: Сodegen check
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  codegen:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Run code generation in Docker
+        run: |
+          docker run --rm -v "$PWD:/app" -w /app golang:1.25.4 sh -c "go mod download && go generate ./cmd/server"
+      - name: Check for drift
+        run: |
+          git status --porcelain
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "Detected drift between spec and generated code"
+            git diff -- internal/api/generated.go || true
+            exit 1
+          fi

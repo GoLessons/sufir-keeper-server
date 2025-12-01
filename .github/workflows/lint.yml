@@ -1,0 +1,60 @@
+name: Lint
+
+on:
+  pull_request:
+  push:
+    branches: [ "main", "master" ]
+
+jobs:
+  lint:
+    name: Static checks
+    runs-on: ubuntu-latest
+    env:
+      GOFLAGS: -buildvcs=false
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Prepare tools
+        run: |
+          sudo apt-get update && sudo apt-get install -y --no-install-recommends git ca-certificates
+          go install golang.org/x/tools/cmd/goimports@v0.38.0
+          echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
+          go mod download
+
+      - name: Check gofmt
+        run: |
+          OUT=$(gofmt -s -l .)
+          if [ -n "$OUT" ]; then
+            echo "$OUT"
+            exit 1
+          fi
+
+      - name: Check goimports
+        run: |
+          MODULE=$(go list -m)
+          OUT=$(goimports -l -local "$MODULE" ./)
+          if [ -n "$OUT" ]; then
+            echo "$OUT"
+            exit 1
+          fi
+
+      - name: Run go vet
+        run: go vet ./...
+
+      - name: Run golangci-lint
+        uses: golangci/golangci-lint-action@v7
+        with:
+          version: v2.6.2
+          args: --config tools/.golangci-lint.yml --timeout 3m
+
+      - name: Go mod tidy check
+        run: |
+          go mod tidy
+          git diff --exit-code -- go.mod go.sum

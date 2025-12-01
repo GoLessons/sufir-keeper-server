@@ -1,0 +1,62 @@
+type ChiServerOptions struct {
+    BaseURL string
+    BaseRouter chi.Router
+    Middlewares map[string][]MiddlewareFunc
+    ErrorHandlerFunc   func(w http.ResponseWriter, r *http.Request, err error)
+}
+
+func Handler(si ServerInterface, options ChiServerOptions) http.Handler {
+r := options.BaseRouter
+
+if r == nil {
+r = chi.NewRouter()
+}
+if options.ErrorHandlerFunc == nil {
+    options.ErrorHandlerFunc = func(w http.ResponseWriter, r *http.Request, err error) {
+        status := http.StatusBadRequest
+        code := "bad_request"
+        message := err.Error()
+        switch e := err.(type) {
+        case *RequiredParamError:
+            code = "required_param"
+            message = e.Error()
+        case *RequiredHeaderError:
+            code = "required_header"
+            message = e.Error()
+        case *UnmarshalingParamError:
+            code = "invalid_json"
+            message = e.Error()
+        case *InvalidParamFormatError:
+            code = "invalid_format"
+            message = e.Error()
+        case *TooManyValuesForParamError:
+            code = "too_many_values"
+            message = e.Error()
+        case *UnescapedCookieParamError:
+            code = "invalid_cookie"
+            message = e.Error()
+        }
+        w.Header().Set("Content-Type", "application/json")
+        w.WriteHeader(status)
+        _ = json.NewEncoder(w).Encode(Error{Code: &status, Error: &code, Message: &message})
+    }
+}
+{{if .}}wrapper := ServerInterfaceWrapper{
+Handler: si,
+HandlerMiddlewares: options.Middlewares["common"],
+ErrorHandlerFunc: options.ErrorHandlerFunc,
+}
+{{end}}
+{{range .}}r.Group(func(r chi.Router) {
+if middlewares, ok := options.Middlewares["{{.Method}} {{.Path | swaggerUriToChiUri}}"]; ok && len(middlewares) > 0 {
+r.Use(middlewares...)
+}
+r.{{.Method | lower | title }}(options.BaseURL+"{{.Path | swaggerUriToChiUri}}", wrapper.{{.OperationId}})
+})
+{{end}}
+return r
+}
+
+func HandlerFromMux(si ServerInterface, r chi.Router) http.Handler {
+    return Handler(si, ChiServerOptions{BaseRouter: r})
+}

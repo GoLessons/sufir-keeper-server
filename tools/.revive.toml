@@ -1,0 +1,18 @@
+ignoreGeneratedHeader = false
+severity = "warning"
+
+rules = [
+  { name = "var-naming" },
+  { name = "function-naming" },
+  { name = "indent-error-flow" },
+  { name = "error-naming" },
+  { name = "errorf" },
+  { name = "empty-block" },
+  { name = "superfluous-else" },
+  { name = "redundant-import-alias" }
+]
+
+ [rule.exported]
+ severity = "off"
+ [rule.package-comments]
+ severity = "off"

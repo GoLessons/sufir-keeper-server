@@ -1,0 +1,61 @@
+version: "2"
+
+run:
+  tests: true
+
+issues:
+  max-issues-per-linter: 50
+  max-same-issues: 5
+  exclude-dirs:
+    - vendor
+    - .docker
+    - tools
+    - docs
+
+linters:
+  default: none
+  enable:
+    - govet
+    - revive
+    - staticcheck
+    - unused
+    - ineffassign
+    - errcheck
+    - goconst
+    - prealloc
+  settings:
+    revive:
+      config: tools/.revive.toml
+    goconst:
+      ignore-tests: true
+      min-occurrences: 3
+    errcheck:
+      exclude-functions:
+        - fmt.Fprintf
+        - fmt.Fprintf
+        - fmt.Fprintln
+        - fmt.Println
+    prealloc:
+      simple: true
+    govet:
+      enable-all: true
+      disable:
+        - shadow
+
+  exclusions:
+    presets:
+      - comments
+      - common-false-positives
+      - std-error-handling
+      - legacy
+
+output:
+  text:
+    path: stdout
+    print-issued-lines: true
+    print-linter-name: true
+    colors: true
+
+formatters:
+  enable:
+    - gofumpt

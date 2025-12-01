@@ -1,0 +1,13 @@
+type ServerInterface interface {
+{{range .}}
+{{.OperationId}}(w http.ResponseWriter, r *http.Request{{genParamArgs .PathParams}}{{if .RequiresParamObject}}, params {{.OperationId}}Params{{end}})
+{{end}}
+}
+
+type Unimplemented struct{}
+
+{{range .}}
+func (Unimplemented) {{.OperationId}}(w http.ResponseWriter, r *http.Request{{genParamArgs .PathParams}}{{if .RequiresParamObject}}, params {{.OperationId}}Params{{end}}) {
+    http.Error(w, "not implemented", http.StatusNotImplemented)
+}
+{{end}}

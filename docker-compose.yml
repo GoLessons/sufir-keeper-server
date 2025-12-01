@@ -1,0 +1,22 @@
+services:
+  oapi-generate:
+    build:
+      context: .
+      dockerfile: .docker/go/Dockerfile
+    working_dir: /workspace
+    volumes:
+      - .:/workspace
+    environment:
+      - GOCACHE=/workspace/.gocache
+    command: sh -c "go mod download && mkdir -p internal/api && go generate ./cmd/server"
+  devcheck:
+    build:
+      context: .
+      dockerfile: .docker/go/Dockerfile
+    working_dir: /workspace
+    volumes:
+      - .:/workspace
+    environment:
+      - GOCACHE=/workspace/.gocache
+      - GOFLAGS=-buildvcs=false
+    command: bash -lc "chmod +x tools/devcheck.sh && tools/devcheck.sh"
