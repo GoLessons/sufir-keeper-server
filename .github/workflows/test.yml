@@ -112,7 +112,7 @@ jobs:
           cat <<EOF > "./.pages/${branch}/coverage-badge.json"
           {
             "schemaVersion": 1,
-            "label": "coverage",
+            "label": "Coverage",
             "message": "${pct}%",
             "color": "${color}",
             "cacheSeconds": 60
