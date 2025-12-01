@@ -1,0 +1,583 @@
+openapi: 3.0.3
+info:
+  title: Sufir's Keeper Server API
+  description: Серверное API системы, позволяющую пользователю надёжно и безопасно хранить логины, пароли, бинарные данные и прочую приватную информацию.
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:8080/api/v1
+    description: Dev server
+
+tags:
+  - name: Auth
+    description: Аутентификация и регистрация
+  - name: Items
+    description: Управление записями
+  - name: Files
+    description: Загрузка и скачивание файлов
+
+paths:
+  /register:
+    post:
+      tags: [Auth]
+      summary: Регистрация нового пользователя
+      operationId: registerUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserRegister'
+      responses:
+        '201':
+          description: Пользователь успешно создан
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "User registered successfully"
+        '400':
+          description: Неверные данные
+        '409':
+          description: Пользователь с таким логином уже существует
+
+  /auth:
+    post:
+      tags: [Auth]
+      summary: Аутентификация, получение JWT токенов
+      operationId: loginUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserLogin'
+      responses:
+        '200':
+          description: Успешная аутентификация
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401':
+          description: Неверные логин или пароль
+    delete:
+      tags: [Auth]
+      summary: Выход из системы (инвалидация токенов)
+      operationId: logoutUser
+      security:
+        - bearerAuth: []
+      responses:
+        '204':
+          description: Успешный выход, токены инвалидированы
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+    patch:
+      tags: [Auth]
+      summary: Обновление access токена
+      operationId: refreshToken
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refresh_token]
+              properties:
+                refresh_token:
+                  type: string
+                  description: Refresh token
+      responses:
+        '200':
+          description: Токены успешно обновлены
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401':
+          description: Неверный или просроченный refresh token
+
+  /items:
+    get:
+      tags: [Items]
+      summary: Получить список записей пользователя (без данных)
+      operationId: getItems
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: type
+          in: query
+          description: Фильтрация по типу записи
+          schema:
+            $ref: '#/components/schemas/ItemType'
+        - name: s
+          in: query
+          description: Поиск по наименованию
+          schema:
+            type: string
+        - name: limit
+          in: query
+          description: Количество записей (пагинация)
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: offset
+          in: query
+          description: Смещение (пагинация)
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+      responses:
+        '200':
+          description: Список записей (без поля data)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ItemListResponse'
+                  total:
+                    type: integer
+                    description: Общее количество записей
+                  limit:
+                    type: integer
+                  offset:
+                    type: integer
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+    post:
+      tags: [Items]
+      summary: Создать новую запись
+      operationId: createItem
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ItemCreate'
+      responses:
+        '201':
+          description: Запись успешно создана
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ItemResponse'
+        '400':
+          description: Неверные данные
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /items/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: ID записи
+    get:
+      tags: [Items]
+      summary: Получить запись по ID
+      operationId: getItem
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Запись найдена
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ItemResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          description: Запись не найдена
+    put:
+      tags: [Items]
+      summary: Обновить запись
+      operationId: updateItem
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ItemUpdate'
+      responses:
+        '200':
+          description: Запись успешно обновлена
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ItemResponse'
+        '400':
+          description: Неверные данные
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          description: Запись не найдена
+    delete:
+      tags: [Items]
+      summary: Удалить запись
+      operationId: deleteItem
+      security:
+        - bearerAuth: []
+      responses:
+        '204':
+          description: Запись успешно удалена
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          description: Запись не найдена
+
+  /files:
+    post:
+      tags: [Files]
+      summary: Загрузить файл
+      operationId: uploadFile
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: X-File-ID
+          in: header
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: ID файла, сгенерированный клиентом
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: Файл для загрузки
+      responses:
+        '204':
+          description: Файл успешно загружен
+        '400':
+          description: Неверный запрос (отсутствует файл или ID)
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '409':
+          description: Файл с таким ID уже существует
+
+  /files/{fileId}:
+    get:
+      tags: [Files]
+      summary: Скачать файл
+      operationId: downloadFile
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: fileId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: ID файла
+      responses:
+        '200':
+          description: Файл найден
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          description: Нет доступа к файлу
+        '404':
+          description: Файл не найден
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        JWT токен, полученный при аутентификации.
+        Формат: `Authorization: Bearer <token>`
+
+  responses:
+    UnauthorizedError:
+      description: Не авторизован или токен недействителен
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+  schemas:
+    UserRegister:
+      type: object
+      required: [login, password]
+      properties:
+        login:
+          type: string
+          minLength: 3
+          maxLength: 50
+          pattern: '^[a-zA-Z0-9_]+$'
+          example: "user123"
+        password:
+          type: string
+          minLength: 6
+          maxLength: 100
+          format: password
+          example: "strongpassword123"
+
+    UserLogin:
+      type: object
+      required: [login, password]
+      properties:
+        login:
+          type: string
+          example: "user123"
+        password:
+          type: string
+          format: password
+          example: "strongpassword123"
+
+    AuthResponse:
+      type: object
+      properties:
+        access_token:
+          type: string
+          description: JWT access token (короткоживущий)
+          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+        refresh_token:
+          type: string
+          description: Refresh token (долгоживущий)
+          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+        token_type:
+          type: string
+          example: "bearer"
+        expires_in:
+          type: integer
+          description: Время жизни access токена в секундах
+          example: 3600
+
+    ItemType:
+      type: string
+      enum: [CREDENTIAL, CARD, TEXT, BINARY]
+      description: Тип хранимой записи
+
+    CredentialData:
+      type: object
+      required: [login, password]
+      properties:
+        login:
+          type: string
+          minLength: 1
+          maxLength: 255
+          example: "myemail@example.com"
+        password:
+          type: string
+          minLength: 1
+          maxLength: 255
+          example: "password123"
+
+    CardData:
+      type: object
+      required: [card_number, card_holder, expiry_date, cvv]
+      properties:
+        card_number:
+          type: string
+          pattern: '^[0-9]{16}$'
+          example: "4111111111111111"
+        card_holder:
+          type: string
+          minLength: 1
+          maxLength: 100
+          example: "IVAN IVANOV"
+        expiry_date:
+          type: string
+          pattern: '^(0[1-9]|1[0-2])\/[0-9]{2}$'
+          description: Формат MM/YY
+          example: "12/25"
+        cvv:
+          type: string
+          pattern: '^[0-9]{3,4}$'
+          example: "123"
+
+    TextData:
+      type: object
+      required: [value]
+      properties:
+        value:
+          type: string
+          minLength: 1
+          maxLength: 10000
+          example: "Мой секретный текст"
+
+    BinaryData:
+      type: object
+      required: [filename, id]
+      properties:
+        filename:
+          type: string
+          minLength: 1
+          maxLength: 255
+          example: "document.pdf"
+        id:
+          type: string
+          format: uuid
+          example: "550e8400-e29b-41d4-a716-446655440000"
+
+    ItemCreate:
+      type: object
+      required: [type, title, data]
+      properties:
+        type:
+          $ref: '#/components/schemas/ItemType'
+        title:
+          type: string
+          minLength: 1
+          maxLength: 255
+          example: "Мой пароль от Gmail"
+        data:
+          oneOf:
+            - $ref: '#/components/schemas/CredentialData'
+            - $ref: '#/components/schemas/CardData'
+            - $ref: '#/components/schemas/TextData'
+            - $ref: '#/components/schemas/BinaryData'
+          discriminator:
+            propertyName: type
+            mapping:
+              CREDENTIAL: '#/components/schemas/CredentialData'
+              CARD: '#/components/schemas/CardData'
+              TEXT: '#/components/schemas/TextData'
+              BINARY: '#/components/schemas/BinaryData'
+        meta:
+          type: object
+          additionalProperties:
+            type: string
+          description: Произвольные метаданные в формате ключ-значение (только строки)
+          example:
+            category: "work"
+            importance: "high"
+
+    ItemUpdate:
+      type: object
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 255
+          example: "Обновленный заголовок"
+        data:
+          oneOf:
+            - $ref: '#/components/schemas/CredentialData'
+            - $ref: '#/components/schemas/CardData'
+            - $ref: '#/components/schemas/TextData'
+            - $ref: '#/components/schemas/BinaryData'
+        meta:
+          type: object
+          additionalProperties:
+            type: string
+          example:
+            category: "personal"
+            updated: "true"
+
+    ItemListResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        type:
+          $ref: '#/components/schemas/ItemType'
+        title:
+          type: string
+          example: "Мой пароль от Gmail"
+        meta:
+          type: object
+          additionalProperties:
+            type: string
+          example:
+            category: "work"
+            importance: "high"
+        created_at:
+          type: string
+          format: date-time
+          example: "2024-01-15T10:30:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          example: "2024-01-15T10:30:00Z"
+
+    ItemResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        type:
+          $ref: '#/components/schemas/ItemType'
+        title:
+          type: string
+          example: "Мой пароль от Gmail"
+        data:
+          oneOf:
+            - $ref: '#/components/schemas/CredentialData'
+            - $ref: '#/components/schemas/CardData'
+            - $ref: '#/components/schemas/TextData'
+            - $ref: '#/components/schemas/BinaryData'
+        meta:
+          type: object
+          additionalProperties:
+            type: string
+          example:
+            category: "work"
+            importance: "high"
+        created_at:
+          type: string
+          format: date-time
+          example: "2024-01-15T10:30:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          example: "2024-01-15T10:30:00Z"
+        user_id:
+          type: string
+          format: uuid
+          description: ID владельца записи (для внутреннего использования)
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Тип ошибки
+          example: "Unauthorized"
+        message:
+          type: string
+          description: Сообщение об ошибке
+          example: "Invalid or expired token"
+        code:
+          type: integer
+          description: HTTP код ошибки
+          example: 401
