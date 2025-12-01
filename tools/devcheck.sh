@@ -10,8 +10,9 @@ if [ -n "$fmt_out" ]; then
   echo "$fmt_out" && exit 1
 fi
 
-goimports -w .
-imports_out=$(goimports -l . || true)
+MODULE=$(go list -m)
+goimports -local "$MODULE" -w .
+imports_out=$(goimports -l -local "$MODULE" ./ || true)
 if [ -n "$imports_out" ]; then
   echo "$imports_out" && exit 1
 fi
