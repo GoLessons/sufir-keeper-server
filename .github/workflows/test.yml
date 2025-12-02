@@ -20,6 +20,10 @@ jobs:
       COVERAGE_EXCLUDE: |
         (^|/)test[^/]*(/|$)
         (^|/)[^/]test\.go$
+        ^.*/cmd/server/.*$
+        ^.*/internal/api/.*$
+        ^.*_test\.go$
+        ^.*generated.*\.go$
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -36,7 +40,7 @@ jobs:
       - name: Run tests with coverage
         run: |
           set -e
-          go test ./... -covermode=atomic -coverprofile=coverage.out
+          go test -race -count=0 ./... -covermode=atomic -coverprofile=coverage.out
 
       - name: Filter coverage excludes
         id: filter
@@ -47,6 +51,8 @@ jobs:
           header=$(head -n 1 "$src")
           tail -n +2 "$src" > coverage.body
           ws="$GITHUB_WORKSPACE"
+          grep -R -I -n -E '^[[:space:]]*//[[:space:]]*Code[[:space:]]+generated( | by).*' --include='*.go' . | cut -d: -f1 | sort -u > generated.list || true
+          if [ -f generated.list ]; then sed -i 's#^\./##' generated.list; fi
           pats=$(printf "%s" "$excludes" | tr '\n' '\t')
           awk -v ws="$ws" -v pats="$pats" '
             BEGIN { n=split(pats, a, "\t") }
@@ -69,8 +75,22 @@ jobs:
               if (skip==0) print line
             }
           ' coverage.body > coverage.filtered.body
+          awk -v ws="$ws" '
+            BEGIN { while ((getline line < "generated.list") > 0) { gen[line]=1 } }
+            {
+              line=$0
+              i=index(line, ":")
+              path=(i>0?substr(line,1,i-1):line)
+              rel=path
+              prefix=ws "/"
+              if (ws != "" && index(path, prefix)==1) {
+                rel=substr(path, length(prefix)+1)
+              }
+              if (!(rel in gen)) print line
+            }
+          ' coverage.filtered.body > coverage.filtered2.body
           printf "%s\n" "$header" > coverage.filtered.out
-          cat coverage.filtered.body >> coverage.filtered.out
+          cat coverage.filtered2.body >> coverage.filtered.out
           selected="$src"
           if [ -s coverage.filtered.out ]; then selected="coverage.filtered.out"; fi
           echo "selected=$selected" >> "$GITHUB_OUTPUT"

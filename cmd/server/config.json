@@ -1,0 +1,18 @@
+{
+  "db": {
+    "dsn": "postgres://postgres:postgres@localhost:5432/keeper?sslmode=disable",
+    "max_open_conns": 20,
+    "max_idle_conns": 10,
+    "conn_max_lifetime_seconds": 1800,
+    "conn_max_idle_time_seconds": 300
+  },
+  "server": {
+    "address": "0.0.0.0",
+    "port": 8080,
+    "read_timeout_seconds": 30,
+    "read_header_timeout_seconds": 10,
+    "write_timeout_seconds": 30,
+    "idle_timeout_seconds": 120,
+    "max_body_bytes": 10485760
+  }
+}

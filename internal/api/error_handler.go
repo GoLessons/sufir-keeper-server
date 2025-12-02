@@ -9,6 +9,7 @@ func DefaultErrorHandler(w http.ResponseWriter, _ *http.Request, err error) {
 	status := http.StatusBadRequest
 	code := "bad_request"
 	message := err.Error()
+
 	switch err.(type) {
 	case *RequiredParamError:
 		code = "required_param"
@@ -23,6 +24,7 @@ func DefaultErrorHandler(w http.ResponseWriter, _ *http.Request, err error) {
 	case *UnescapedCookieParamError:
 		code = "invalid_cookie"
 	}
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(Error{Code: &status, Error: &code, Message: &message})
