@@ -171,7 +171,12 @@ func LoggingMiddleware(logger *zap.Logger, levels HTTPLogLevels) MiddlewareFunc 
 				}
 			}
 			responseContentType := strings.ToLower(responseHeaders.Get("Content-Type"))
-			responseBodyAllowed := isTextContentType(responseContentType) && !strings.HasPrefix(responseContentType, "multipart/form-data") && !isBinaryContentType(responseContentType)
+			var responseBodyAllowed bool
+			if strings.TrimSpace(responseContentType) == "" {
+				responseBodyAllowed = true
+			} else {
+				responseBodyAllowed = isTextContentType(responseContentType) && !strings.HasPrefix(responseContentType, "multipart/form-data") && !isBinaryContentType(responseContentType)
+			}
 			if responseBodyAllowed {
 				responseBytes := recorder.body.Bytes()
 				responseBodyTruncated = recorder.bodyTruncated

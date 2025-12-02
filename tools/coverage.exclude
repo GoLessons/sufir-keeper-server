@@ -1,0 +1,4 @@
+^.*/cmd/server/.*$
+^.*/internal/api/.*$
+^.*_test\.go$
+^.*generated.*\.go$

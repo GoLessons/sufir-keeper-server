@@ -2,9 +2,10 @@ package config
 
 import (
 	"context"
+	"net/http"
+
 	"go.uber.org/multierr"
 	"go.uber.org/zap"
-	"net/http"
 
 	"github.com/go-chi/chi/v5"
 

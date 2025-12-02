@@ -3,13 +3,15 @@ package config
 import (
 	"context"
 	"fmt"
-	"github.com/GoLessons/sufir-keeper-server/internal/api"
-	"github.com/GoLessons/sufir-keeper-server/internal/db"
-	"github.com/go-chi/chi/v5"
-	"go.uber.org/zap"
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/go-chi/chi/v5"
+	"go.uber.org/zap"
+
+	"github.com/GoLessons/sufir-keeper-server/internal/api"
+	"github.com/GoLessons/sufir-keeper-server/internal/db"
 )
 
 func createApplicationLogger() (*zap.Logger, error) {
@@ -69,7 +71,7 @@ func createChiServerOptions(router *chi.Mux, logger *zap.Logger, configuration A
 	return api.ChiServerOptions{
 		BaseURL:          "",
 		BaseRouter:       router,
-		Middlewares:      map[string][]api.MiddlewareFunc{"common": {api.RecoverMiddleware(), api.LoggingMiddleware(logger, api.HTTPLogLevels{Success: strings.TrimSpace(configuration.Log.LevelSuccess), ClientError: strings.TrimSpace(configuration.Log.LevelClientError), ServerError: strings.TrimSpace(configuration.Log.LevelServerError)})}},
+		Middlewares:      map[string][]api.MiddlewareFunc{"common": {api.RecoverMiddleware(), api.ContentTypeValidationMiddleware(), api.LoggingMiddleware(logger, api.HTTPLogLevels{Success: strings.TrimSpace(configuration.Log.LevelSuccess), ClientError: strings.TrimSpace(configuration.Log.LevelClientError), ServerError: strings.TrimSpace(configuration.Log.LevelServerError)})}},
 		ErrorHandlerFunc: api.DefaultErrorHandler,
 	}
 }
