@@ -3,24 +3,26 @@ name: Run tests
 on:
   push:
   pull_request:
-    types: [opened, synchronize, reopened, closed]
+    types: [opened, synchronize, reopened]
   workflow_dispatch:
 
-permissions:
-  contents: read
-  pages: write
-  id-token: write
-
-  jobs:
-    tests:
+jobs:
+  tests:
     name: Run tests
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    concurrency:
+      group: tests-${{ github.ref }}
+      cancel-in-progress: true
     env:
       GOFLAGS: -buildvcs=false
-      
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Go
         uses: actions/setup-go@v5
@@ -41,22 +43,11 @@ permissions:
           set -e
           go test ./... -covermode=atomic -coverprofile=coverage.out
 
-      - name: Select coverage file
-        id: filter
-        run: |
-          set -e
-          if [ ! -s coverage.out ]; then
-            echo "coverage.out not found or empty" >&2
-            exit 1
-          fi
-          echo "selected=coverage.out" >> "$GITHUB_OUTPUT"
-
       - name: Compute coverage value
         id: cov
         run: |
           set -e
-          src="${{ steps.filter.outputs.selected }}"
-          if [ -z "$src" ]; then src="coverage.out"; fi
+          src="coverage.out"
           if [ ! -s "$src" ]; then
             echo "coverage.out not found or empty" >&2
             exit 1
@@ -79,10 +70,42 @@ permissions:
           fi
           echo "color=$color" >> "$GITHUB_OUTPUT"
 
+      - name: Upload coverage artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-out
+          path: coverage.out
+          if-no-files-found: error
+
+  publish-coverage:
+    name: Publish coverage report
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    if: github.event_name == 'push'
+    needs: tests
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    concurrency:
+      group: coverage-${{ github.ref }}
+      cancel-in-progress: true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download coverage artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: coverage-out
+          path: .
+
       - name: Write Shields endpoint JSON
         run: |
-          pct="${{ steps.cov.outputs.pct }}"
-          color="${{ steps.cov.outputs.color }}"
+          pct="${{ needs.tests.outputs.pct || '0' }}"
+          color="${{ needs.tests.outputs.color || 'red' }}"
           branch="${{ github.ref_name }}"
           mkdir -p "./.pages/${branch}"
           cat <<EOF > "./.pages/${branch}/coverage-badge.json"
@@ -100,22 +123,19 @@ permissions:
       - name: Generate HTML coverage report
         run: |
           branch="${{ github.ref_name }}"
-          src="${{ steps.filter.outputs.selected }}"
-          if [ -z "$src" ]; then src="coverage.out"; fi
+          src="coverage.out"
           mkdir -p "./.pages/${branch}"
           go tool cover -html="$src" -o "./.pages/${branch}/index.html"
           mkdir -p ./.pages
           cp "./.pages/${branch}/index.html" "./.pages/index.html"
 
       - name: Upload Pages artifact
-        if: github.event_name == 'push'
         uses: actions/upload-pages-artifact@v3
         with:
           name: github-pages
           path: ./.pages
 
       - name: Deploy to GitHub Pages
-        if: github.event_name == 'push'
         uses: actions/deploy-pages@v4
 
   
