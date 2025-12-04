@@ -11,18 +11,13 @@ permissions:
   pages: write
   id-token: write
 
-jobs:
-  tests:
+  jobs:
+    tests:
     name: Run tests
     runs-on: ubuntu-latest
     env:
       GOFLAGS: -buildvcs=false
-      COVERAGE_EXCLUDE: |
-        (^|/)test[^/]*(/|$)
-        (^|/)[^/]test\.go$
-        ^.*/cmd/server/.*$
-        ^.*_test\.go$
-        ^.*generated.*\.go$
+      
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -36,63 +31,25 @@ jobs:
       - name: Download modules
         run: go mod download
 
-      - name: Run tests with coverage
+      - name: Run tests (-race)
         run: |
           set -e
-          go test -race -count=0 -covermode=atomic -coverpkg=./... -coverprofile=coverage.out ./...
+          go test -race -count=0 ./...
 
-      - name: Filter coverage excludes
+      - name: Generate coverage
+        run: |
+          set -e
+          go test ./... -covermode=atomic -coverprofile=coverage.out
+
+      - name: Select coverage file
         id: filter
         run: |
           set -e
-          src="coverage.out"
-          excludes="${COVERAGE_EXCLUDE}"
-          header=$(head -n 1 "$src")
-          tail -n +2 "$src" > coverage.body
-          ws="$GITHUB_WORKSPACE"
-          grep -R -I -n -E '^[[:space:]]*//[[:space:]]*Code[[:space:]]+generated( | by).*' --include='*.go' . | cut -d: -f1 | sort -u > generated.list || true
-          if [ -f generated.list ]; then sed -i 's#^\./##' generated.list; fi
-          pats=$(printf "%s" "$excludes" | tr '\n' '\t')
-          awk -v ws="$ws" -v pats="$pats" '
-            BEGIN { n=split(pats, a, "\t") }
-            {
-              line=$0
-              i=index(line, ":")
-              path=(i>0?substr(line,1,i-1):line)
-              rel=path
-              prefix=ws "/"
-              if (ws != "" && index(path, prefix)==1) {
-                rel=substr(path, length(prefix)+1)
-              }
-              skip=0
-              if (n>0) {
-                for (j=1;j<=n;j++) {
-                  p=a[j]; if (p=="") continue
-                  if (rel ~ p) { skip=1; break }
-                }
-              }
-              if (skip==0) print line
-            }
-          ' coverage.body > coverage.filtered.body
-          awk -v ws="$ws" '
-            BEGIN { while ((getline line < "generated.list") > 0) { gen[line]=1 } }
-            {
-              line=$0
-              i=index(line, ":")
-              path=(i>0?substr(line,1,i-1):line)
-              rel=path
-              prefix=ws "/"
-              if (ws != "" && index(path, prefix)==1) {
-                rel=substr(path, length(prefix)+1)
-              }
-              if (!(rel in gen)) print line
-            }
-          ' coverage.filtered.body > coverage.filtered2.body
-          printf "%s\n" "$header" > coverage.filtered.out
-          cat coverage.filtered2.body >> coverage.filtered.out
-          selected="$src"
-          if [ -s coverage.filtered.out ]; then selected="coverage.filtered.out"; fi
-          echo "selected=$selected" >> "$GITHUB_OUTPUT"
+          if [ ! -s coverage.out ]; then
+            echo "coverage.out not found or empty" >&2
+            exit 1
+          fi
+          echo "selected=coverage.out" >> "$GITHUB_OUTPUT"
 
       - name: Compute coverage value
         id: cov
