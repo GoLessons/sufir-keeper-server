@@ -87,6 +87,24 @@ jobs:
           go tool cover -html="$src" -o "./.pages/${branch}/index.html"
           mkdir -p ./.pages
           cp "./.pages/${branch}/index.html" "./.pages/index.html"
+      - name: Write Shields endpoint JSON
+        if: github.event_name == 'push'
+        run: |
+          pct="${{ steps.cov.outputs.pct }}"
+          color="${{ steps.cov.outputs.color }}"
+          branch="${{ github.ref_name }}"
+          mkdir -p "./.pages/${branch}"
+          cat <<EOF > "./.pages/${branch}/coverage-badge.json"
+          {
+            "schemaVersion": 1,
+            "label": "Coverage",
+            "message": "${pct}%",
+            "color": "${color}",
+            "cacheSeconds": 60
+          }
+          EOF
+          mkdir -p ./.pages
+          cp "./.pages/${branch}/coverage-badge.json" "./.pages/coverage-badge.json"
       - name: Upload Pages artifact
         if: github.event_name == 'push'
         uses: actions/upload-pages-artifact@v3
