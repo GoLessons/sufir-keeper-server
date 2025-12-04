@@ -8,6 +8,10 @@ on:
 jobs:
   codegen:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+    concurrency:
+      group: codegen-${{ github.ref }}
+      cancel-in-progress: true
     steps:
       - uses: actions/checkout@v4
       - name: Set up Docker Buildx

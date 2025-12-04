@@ -4,43 +4,39 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"os"
-	"os/signal"
-	"syscall"
 	"time"
 
-	"github.com/GoLessons/sufir-keeper-server/internal/api"
+	"github.com/GoLessons/sufir-keeper-server/internal/app/shutdown"
 
-	"github.com/go-chi/chi/v5"
+	"github.com/GoLessons/sufir-keeper-server/internal/config"
+
 	"go.uber.org/zap"
 )
 
 func main() {
-	logger, _ := zap.NewProduction()
-	defer func() { _ = logger.Sync() }()
-
-	router := chi.NewRouter()
-
-	serverImpl := api.Unimplemented{}
-	handler := api.Handler(serverImpl, api.ChiServerOptions{BaseRouter: router, ErrorHandlerFunc: api.DefaultErrorHandler, Middlewares: map[string][]api.MiddlewareFunc{"common": {api.LoggingMiddleware(logger)}}})
-
-	srv := &http.Server{Addr: ":8080", Handler: handler}
-
-	stop := make(chan os.Signal, 1)
-	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
-
-	go func() {
-		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			logger.Error("Ошибка при работе сервера", zap.Error(err))
-		}
-	}()
-
-	<-stop
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-
-	if err := srv.Shutdown(ctx); err != nil {
-		logger.Error("Ошибка при завершении работы сервера", zap.Error(err))
+	container, err := config.Initialize(context.Background())
+	if err != nil {
+		fmt.Printf("Ошибка инициализации приложения: %s", err.Error())
+		os.Exit(1)
 	}
+	defer func() { _ = container.Close() }()
+
+	app := shutdown.NewGracefulShutdown(container.Logger(), 30*time.Second)
+	app.Run(
+		func() {
+			server := container.HTTPServer()
+			logger := container.Logger()
+
+			err := server.ListenAndServe()
+			if err != nil && err != http.ErrServerClosed {
+				logger.Error("Ошибка при работе сервера", zap.Error(err))
+			}
+		},
+		func(ctx context.Context) error {
+			return container.HTTPServer().Shutdown(ctx)
+		},
+	)
 }

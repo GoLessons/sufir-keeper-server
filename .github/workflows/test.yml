@@ -3,26 +3,28 @@ name: Run tests
 on:
   push:
   pull_request:
-    types: [opened, synchronize, reopened, closed]
+    types: [opened, synchronize, reopened]
   workflow_dispatch:
-
-permissions:
-  contents: read
-  pages: write
-  id-token: write
 
 jobs:
   tests:
     name: Run tests
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    concurrency:
+      group: tests-${{ github.ref }}
+      cancel-in-progress: true
     env:
       GOFLAGS: -buildvcs=false
-      COVERAGE_EXCLUDE: |
-        (^|/)test[^/]*(/|$)
-        (^|/)[^/]test\.go$
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Go
         uses: actions/setup-go@v5
@@ -33,54 +35,21 @@ jobs:
       - name: Download modules
         run: go mod download
 
-      - name: Run tests with coverage
+      - name: Run tests (-race)
+        run: |
+          set -e
+          go test -race -count=0 ./...
+
+      - name: Generate coverage
         run: |
           set -e
           go test ./... -covermode=atomic -coverprofile=coverage.out
-
-      - name: Filter coverage excludes
-        id: filter
-        run: |
-          set -e
-          src="coverage.out"
-          excludes="${COVERAGE_EXCLUDE}"
-          header=$(head -n 1 "$src")
-          tail -n +2 "$src" > coverage.body
-          ws="$GITHUB_WORKSPACE"
-          pats=$(printf "%s" "$excludes" | tr '\n' '\t')
-          awk -v ws="$ws" -v pats="$pats" '
-            BEGIN { n=split(pats, a, "\t") }
-            {
-              line=$0
-              i=index(line, ":")
-              path=(i>0?substr(line,1,i-1):line)
-              rel=path
-              prefix=ws "/"
-              if (ws != "" && index(path, prefix)==1) {
-                rel=substr(path, length(prefix)+1)
-              }
-              skip=0
-              if (n>0) {
-                for (j=1;j<=n;j++) {
-                  p=a[j]; if (p=="") continue
-                  if (rel ~ p) { skip=1; break }
-                }
-              }
-              if (skip==0) print line
-            }
-          ' coverage.body > coverage.filtered.body
-          printf "%s\n" "$header" > coverage.filtered.out
-          cat coverage.filtered.body >> coverage.filtered.out
-          selected="$src"
-          if [ -s coverage.filtered.out ]; then selected="coverage.filtered.out"; fi
-          echo "selected=$selected" >> "$GITHUB_OUTPUT"
 
       - name: Compute coverage value
         id: cov
         run: |
           set -e
-          src="${{ steps.filter.outputs.selected }}"
-          if [ -z "$src" ]; then src="coverage.out"; fi
+          src="coverage.out"
           if [ ! -s "$src" ]; then
             echo "coverage.out not found or empty" >&2
             exit 1
@@ -103,7 +72,23 @@ jobs:
           fi
           echo "color=$color" >> "$GITHUB_OUTPUT"
 
+      - name: Upload coverage artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-out
+          path: coverage.out
+          if-no-files-found: error
+      - name: Generate HTML coverage report
+        if: github.event_name == 'push'
+        run: |
+          branch="${{ github.ref_name }}"
+          src="coverage.out"
+          mkdir -p "./.pages/${branch}"
+          go tool cover -html="$src" -o "./.pages/${branch}/index.html"
+          mkdir -p ./.pages
+          cp "./.pages/${branch}/index.html" "./.pages/index.html"
       - name: Write Shields endpoint JSON
+        if: github.event_name == 'push'
         run: |
           pct="${{ steps.cov.outputs.pct }}"
           color="${{ steps.cov.outputs.color }}"
@@ -120,26 +105,16 @@ jobs:
           EOF
           mkdir -p ./.pages
           cp "./.pages/${branch}/coverage-badge.json" "./.pages/coverage-badge.json"
-
-      - name: Generate HTML coverage report
-        run: |
-          branch="${{ github.ref_name }}"
-          src="${{ steps.filter.outputs.selected }}"
-          if [ -z "$src" ]; then src="coverage.out"; fi
-          mkdir -p "./.pages/${branch}"
-          go tool cover -html="$src" -o "./.pages/${branch}/index.html"
-          mkdir -p ./.pages
-          cp "./.pages/${branch}/index.html" "./.pages/index.html"
-
       - name: Upload Pages artifact
         if: github.event_name == 'push'
         uses: actions/upload-pages-artifact@v3
         with:
           name: github-pages
           path: ./.pages
-
       - name: Deploy to GitHub Pages
         if: github.event_name == 'push'
         uses: actions/deploy-pages@v4
+
+  
 
   

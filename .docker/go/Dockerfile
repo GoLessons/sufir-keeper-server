@@ -15,3 +15,5 @@ RUN go install golang.org/x/tools/cmd/goimports@v0.38.0 && \
     ln -sf /usr/local/go/bin/gofmt /usr/local/bin/gofmt
 
 WORKDIR /workspace
+COPY go.mod go.sum /workspace/
+RUN cd /workspace && go mod download
