@@ -76,51 +76,8 @@ jobs:
           name: coverage-out
           path: coverage.out
           if-no-files-found: error
-
-  publish-coverage:
-    name: Publish coverage report
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    if: github.event_name == 'push'
-    needs: tests
-    permissions:
-      contents: read
-      pages: write
-      id-token: write
-    concurrency:
-      group: coverage-${{ github.ref }}
-      cancel-in-progress: true
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Download coverage artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: coverage-out
-          path: .
-
-      - name: Write Shields endpoint JSON
-        run: |
-          pct="${{ needs.tests.outputs.pct || '0' }}"
-          color="${{ needs.tests.outputs.color || 'red' }}"
-          branch="${{ github.ref_name }}"
-          mkdir -p "./.pages/${branch}"
-          cat <<EOF > "./.pages/${branch}/coverage-badge.json"
-          {
-            "schemaVersion": 1,
-            "label": "Coverage",
-            "message": "${pct}%",
-            "color": "${color}",
-            "cacheSeconds": 60
-          }
-          EOF
-          mkdir -p ./.pages
-          cp "./.pages/${branch}/coverage-badge.json" "./.pages/coverage-badge.json"
-
       - name: Generate HTML coverage report
+        if: github.event_name == 'push'
         run: |
           branch="${{ github.ref_name }}"
           src="coverage.out"
@@ -128,14 +85,16 @@ jobs:
           go tool cover -html="$src" -o "./.pages/${branch}/index.html"
           mkdir -p ./.pages
           cp "./.pages/${branch}/index.html" "./.pages/index.html"
-
       - name: Upload Pages artifact
+        if: github.event_name == 'push'
         uses: actions/upload-pages-artifact@v3
         with:
           name: github-pages
           path: ./.pages
-
       - name: Deploy to GitHub Pages
+        if: github.event_name == 'push'
         uses: actions/deploy-pages@v4
+
+  
 
   
