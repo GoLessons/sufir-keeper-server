@@ -13,6 +13,8 @@ jobs:
     timeout-minutes: 15
     permissions:
       contents: read
+      pages: write
+      id-token: write
     concurrency:
       group: tests-${{ github.ref }}
       cancel-in-progress: true
