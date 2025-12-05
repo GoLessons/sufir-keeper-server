@@ -3,6 +3,8 @@ package api
 import (
 	"encoding/json"
 	"net/http"
+
+	model "github.com/GoLessons/sufir-keeper-server/internal/api/types"
 )
 
 func DefaultErrorHandler(w http.ResponseWriter, _ *http.Request, err error) {
@@ -27,5 +29,5 @@ func DefaultErrorHandler(w http.ResponseWriter, _ *http.Request, err error) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(Error{Code: &status, Error: &code, Message: &message})
+	_ = json.NewEncoder(w).Encode(model.Error{Code: &status, Error: &code, Message: &message})
 }

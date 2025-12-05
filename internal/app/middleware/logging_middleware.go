@@ -1,4 +1,4 @@
-package api
+package middleware
 
 import (
 	"bytes"
@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"go.uber.org/zap"
+
+	"github.com/GoLessons/sufir-keeper-server/internal/api"
 )
 
 const maxLogBodyBytes = 16 * 1024
@@ -109,7 +111,7 @@ func (s *responseRecorder) Write(b []byte) (int, error) {
 	return n, err
 }
 
-func LoggingMiddleware(logger *zap.Logger, levels HTTPLogLevels) MiddlewareFunc {
+func LoggingMiddleware(logger *zap.Logger, levels HTTPLogLevels) api.MiddlewareFunc {
 	if strings.TrimSpace(levels.Success) == "" || strings.TrimSpace(levels.ClientError) == "" || strings.TrimSpace(levels.ServerError) == "" {
 		d := defaultHTTPLogLevels()
 		if strings.TrimSpace(levels.Success) == "" {

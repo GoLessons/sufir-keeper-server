@@ -15,6 +15,7 @@ import (
 
 type AppConfig struct {
 	Log    LogConfig      `json:"log"`
+	Auth   AuthConfig     `json:"auth"`
 	DB     DatabaseConfig `json:"db"`
 	Server ServerConfig   `json:"server"`
 }
@@ -41,6 +42,12 @@ type LogConfig struct {
 	LevelSuccess     string `json:"level_success" env:"HTTP_LOG_SUCCESS" flag:"log-success"`
 	LevelClientError string `json:"level_client_error" env:"HTTP_LOG_4XX" flag:"log-4xx"`
 	LevelServerError string `json:"level_server_error" env:"HTTP_LOG_5XX" flag:"log-5xx"`
+}
+
+type AuthConfig struct {
+	JwtSecret              string `json:"jwt_secret" env:"AUTH_JWT_SECRET" flag:"auth-secret"`
+	AccessTokenTTLSeconds  int    `json:"access_token_ttl_seconds" env:"AUTH_ACCESS_TTL" flag:"auth-access-ttl"`
+	RefreshTokenTTLSeconds int    `json:"refresh_token_ttl_seconds" env:"AUTH_REFRESH_TTL" flag:"auth-refresh-ttl"`
 }
 
 func LoadApplicationConfiguration() (AppConfig, error) {
@@ -81,6 +88,12 @@ func LoadApplicationConfiguration() (AppConfig, error) {
 	}
 	if strings.TrimSpace(configuration.Log.LevelServerError) == "" {
 		configuration.Log.LevelServerError = "error"
+	}
+	if configuration.Auth.AccessTokenTTLSeconds <= 0 {
+		configuration.Auth.AccessTokenTTLSeconds = 3600
+	}
+	if configuration.Auth.RefreshTokenTTLSeconds <= 0 {
+		configuration.Auth.RefreshTokenTTLSeconds = 30 * 24 * 3600
 	}
 	return configuration, nil
 }

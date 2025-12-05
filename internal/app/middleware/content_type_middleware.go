@@ -1,12 +1,15 @@
-package api
+package middleware
 
 import (
 	"encoding/json"
 	"net/http"
 	"strings"
+
+	"github.com/GoLessons/sufir-keeper-server/internal/api"
+	model "github.com/GoLessons/sufir-keeper-server/internal/api/types"
 )
 
-func ContentTypeValidationMiddleware() MiddlewareFunc {
+func ContentTypeValidationMiddleware() api.MiddlewareFunc {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			method := strings.ToUpper(r.Method)
@@ -35,5 +38,5 @@ func writeUnsupportedMediaType(w http.ResponseWriter, expected string) {
 	message := "content type must be " + expected
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(Error{Code: &status, Error: &code, Message: &message})
+	_ = json.NewEncoder(w).Encode(model.Error{Code: &status, Error: &code, Message: &message})
 }

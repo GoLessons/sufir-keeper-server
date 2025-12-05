@@ -26,3 +26,6 @@ go test ./... -covermode=atomic -coverprofile=var/coverage.out
 go tool cover -func=var/coverage.out | tail -n 1
 
 go test -race -count=0 ./...
+
+# Проверка, что сборка приложения проходит успешно
+go build -v ./cmd/server

@@ -1,13 +1,15 @@
-package api
+package middleware
 
 import (
 	"errors"
 	"fmt"
 	"net/http"
 	"runtime/debug"
+
+	"github.com/GoLessons/sufir-keeper-server/internal/api"
 )
 
-func RecoverMiddleware() MiddlewareFunc {
+func RecoverMiddleware() api.MiddlewareFunc {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			defer func() {

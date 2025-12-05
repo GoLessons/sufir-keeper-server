@@ -40,7 +40,12 @@ func Initialize(parentContext context.Context) (*ApplicationContainer, error) {
 	}
 
 	router, httpServer := createHTTPServerAndRouter(configuration)
-	options := createChiServerOptions(router, logger, configuration)
+	tokenAuth, err := createJWTAuth(configuration)
+	if err != nil {
+		_ = logger.Sync()
+		return nil, err
+	}
+	options := createChiServerOptions(router, logger, configuration, tokenAuth)
 	tmpContainer := &ApplicationContainer{
 		logger:         logger,
 		configuration:  configuration,
@@ -48,7 +53,7 @@ func Initialize(parentContext context.Context) (*ApplicationContainer, error) {
 		router:         router,
 		httpServer:     httpServer,
 	}
-	serverImpl := createServerImplementation(tmpContainer)
+	serverImpl := createServerImplementation(tmpContainer, tokenAuth)
 	handler := api.Handler(serverImpl, options)
 	if configuration.Server.MaxBodyBytes > 0 {
 		httpServer.Handler = http.MaxBytesHandler(handler, configuration.Server.MaxBodyBytes)
