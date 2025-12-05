@@ -29,3 +29,7 @@ go.work.sum
 .idea/
 .trae/
 .vscode/
+ 
+# Project temp files
+var/*
+!var/.gitkeep

@@ -8,10 +8,13 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/jwtauth/v5"
 	"go.uber.org/zap"
 
 	"github.com/GoLessons/sufir-keeper-server/internal/api"
+	"github.com/GoLessons/sufir-keeper-server/internal/app/middleware"
 	"github.com/GoLessons/sufir-keeper-server/internal/db"
+	"github.com/GoLessons/sufir-keeper-server/internal/repository"
 )
 
 func createApplicationLogger() (*zap.Logger, error) {
@@ -67,15 +70,37 @@ func createHTTPServerAndRouter(configuration AppConfig) (*chi.Mux, *http.Server)
 	return router, httpServer
 }
 
-func createChiServerOptions(router *chi.Mux, logger *zap.Logger, configuration AppConfig) api.ChiServerOptions {
-	return api.ChiServerOptions{
-		BaseURL:          "",
-		BaseRouter:       router,
-		Middlewares:      map[string][]api.MiddlewareFunc{"common": {api.RecoverMiddleware(), api.ContentTypeValidationMiddleware(), api.LoggingMiddleware(logger, api.HTTPLogLevels{Success: strings.TrimSpace(configuration.Log.LevelSuccess), ClientError: strings.TrimSpace(configuration.Log.LevelClientError), ServerError: strings.TrimSpace(configuration.Log.LevelServerError)})}},
-		ErrorHandlerFunc: api.DefaultErrorHandler,
+func createChiServerOptions(router *chi.Mux, logger *zap.Logger, configuration AppConfig, tokenAuth *jwtauth.JWTAuth) api.ChiServerOptions {
+	common := []api.MiddlewareFunc{
+		middleware.RecoverMiddleware(),
+		middleware.ContentTypeValidationMiddleware(),
+		middleware.LoggingMiddleware(logger, middleware.HTTPLogLevels{Success: strings.TrimSpace(configuration.Log.LevelSuccess), ClientError: strings.TrimSpace(configuration.Log.LevelClientError), ServerError: strings.TrimSpace(configuration.Log.LevelServerError)}),
 	}
+	protected := []api.MiddlewareFunc{middleware.AuthRequiredMiddleware(tokenAuth)}
+	middlewares := map[string][]api.MiddlewareFunc{
+		"common":       common,
+		"DELETE /auth": protected,
+	}
+	return api.ChiServerOptions{BaseURL: "", BaseRouter: router, Middlewares: middlewares, ErrorHandlerFunc: api.DefaultErrorHandler}
 }
 
-func createServerImplementation(_ *ApplicationContainer) api.ServerInterface {
-	return api.Unimplemented{}
+func createServerImplementation(container *ApplicationContainer, tokenAuth *jwtauth.JWTAuth) api.ServerInterface {
+	deps := api.ServerDependencies{
+		Logger:                 container.logger,
+		DatabaseClient:         container.databaseClient,
+		TokenAuth:              tokenAuth,
+		AccessTokenTTLSeconds:  container.configuration.Auth.AccessTokenTTLSeconds,
+		RefreshTokenTTLSeconds: container.configuration.Auth.RefreshTokenTTLSeconds,
+		UsersRepository:        repository.NewUserRepository(container.databaseClient),
+	}
+	server := api.NewServer(deps)
+	return server
+}
+
+func createJWTAuth(configuration AppConfig) (*jwtauth.JWTAuth, error) {
+	secret := strings.TrimSpace(configuration.Auth.JwtSecret)
+	if secret == "" {
+		return nil, fmt.Errorf("секрет для JWT не должен быть пустым")
+	}
+	return jwtauth.New("HS256", []byte(secret), nil), nil
 }
