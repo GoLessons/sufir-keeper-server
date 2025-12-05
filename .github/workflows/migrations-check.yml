@@ -61,7 +61,7 @@ jobs:
       - name: Migrate down
         run: |
           docker run --rm --network host -v "$PWD/migrations:/migrations:ro" migrate/migrate:v4.17.0 \
-            -path=/migrations -database "$DB_DSN" down
+            -path=/migrations -database "$DB_DSN" down -all
 
       - name: Cleanup
         if: always()
