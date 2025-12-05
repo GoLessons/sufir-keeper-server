@@ -1,14 +1,15 @@
 services:
-  oapi-generate:
-    build:
-      context: .
-      dockerfile: .docker/go/Dockerfile
-    working_dir: /workspace
-    volumes:
-      - .:/workspace
-    environment:
-      - GOCACHE=/workspace/.gocache
-    command: sh -c "go mod download && mkdir -p internal/api && go generate ./cmd/server"
+#  oapi-generate:
+#    build:
+#      context: .
+#      dockerfile: .docker/go/Dockerfile
+#    working_dir: /workspace
+#    volumes:
+#      - .:/workspace
+#    environment:
+#      - GOCACHE=/workspace/.gocache
+#    command: sh -c "go mod download && mkdir -p internal/api && go generate ./cmd/server"
+
   devcheck:
     build:
       context: .
@@ -20,3 +21,58 @@ services:
       - GOCACHE=/workspace/.gocache
       - GOFLAGS=-buildvcs=false
     command: bash -lc "chmod +x tools/devcheck.sh && tools/devcheck.sh"
+
+  postgres:
+    build:
+      context: .
+      dockerfile: .docker/postgres/Dockerfile
+    container_name: keeper-postgres
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-keeper}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-keeper}
+      - POSTGRES_DB=${POSTGRES_DB:-keeper}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-keeper} -d ${POSTGRES_DB:-keeper}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  migrate:
+    build:
+      context: .
+      dockerfile: .docker/migrate/Dockerfile
+    container_name: keeper-migrate
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./migrations:/migrations:ro
+    command: ["-path=/migrations", "-database=${DB_DSN:-postgres://keeper:keeper@postgres:5432/keeper?sslmode=disable}", "up"]
+    restart: on-failure
+
+  app:
+    build:
+      context: .
+      dockerfile: .docker/go/Dockerfile
+    working_dir: /workspace
+    volumes:
+      - .:/workspace
+    environment:
+      - GOCACHE=/workspace/.gocache
+      - GOFLAGS=-buildvcs=false
+      - DB_DSN=${DB_DSN:-postgres://keeper:keeper@postgres:5432/keeper?sslmode=disable}
+      - HTTP_ADDR=0.0.0.0
+      - HTTP_PORT=8080
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    command: bash -lc "go run ./cmd/server"
+    ports:
+      - "8080:8080"
+
+volumes:
+  postgres-data:
