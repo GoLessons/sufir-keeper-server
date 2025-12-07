@@ -3,16 +3,17 @@ module github.com/GoLessons/sufir-keeper-server
 go 1.25
 
 require (
-	github.com/Masterminds/squirrel v1.5.4
-	github.com/Sufir/go-set-me-up v0.0.0-20251202075516-68d04e785d78
-	github.com/go-chi/chi/v5 v5.2.3
-	github.com/go-chi/jwtauth/v5 v5.3.3
-	github.com/google/uuid v1.6.0
-	github.com/jackc/pgx/v5 v5.7.5
-	github.com/oapi-codegen/runtime v1.1.2
-	go.uber.org/multierr v1.10.0
-	go.uber.org/zap v1.27.0
-	golang.org/x/crypto v0.37.0
+    github.com/oapi-codegen/oapi-codegen/v2 v2.5.1
+    github.com/Masterminds/squirrel v1.5.4
+    github.com/Sufir/go-set-me-up v0.0.0-20251202075516-68d04e785d78
+    github.com/go-chi/chi/v5 v5.2.3
+    github.com/go-chi/jwtauth/v5 v5.3.3
+    github.com/google/uuid v1.6.0
+    github.com/jackc/pgx/v5 v5.7.5
+    github.com/oapi-codegen/runtime v1.1.2
+    go.uber.org/multierr v1.10.0
+    go.uber.org/zap v1.27.0
+    golang.org/x/crypto v0.37.0
 )
 
 require (
