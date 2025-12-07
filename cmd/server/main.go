@@ -1,4 +1,5 @@
 //go:generate oapi-codegen -config ../../tools/oapi.yaml ../../docs/schema.yaml
+//go:generate oapi-codegen -config ../../tools/oapi-server.yaml ../../docs/schema.yaml
 
 package main
 

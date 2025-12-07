@@ -13,6 +13,7 @@ import (
 
 	"github.com/GoLessons/sufir-keeper-server/internal/api"
 	"github.com/GoLessons/sufir-keeper-server/internal/app/middleware"
+	"github.com/GoLessons/sufir-keeper-server/internal/crypto/keyencrypt"
 	"github.com/GoLessons/sufir-keeper-server/internal/db"
 	"github.com/GoLessons/sufir-keeper-server/internal/repository"
 )
@@ -78,8 +79,13 @@ func createChiServerOptions(router *chi.Mux, logger *zap.Logger, configuration A
 	}
 	protected := []api.MiddlewareFunc{middleware.AuthRequiredMiddleware(tokenAuth)}
 	middlewares := map[string][]api.MiddlewareFunc{
-		"common":       common,
-		"DELETE /auth": protected,
+		"common":             common,
+		"DELETE /auth":       protected,
+		"GET /items":         protected,
+		"POST /items":        protected,
+		"GET /items/{id}":    protected,
+		"PUT /items/{id}":    protected,
+		"DELETE /items/{id}": protected,
 	}
 	return api.ChiServerOptions{BaseURL: "", BaseRouter: router, Middlewares: middlewares, ErrorHandlerFunc: api.DefaultErrorHandler}
 }
@@ -92,7 +98,20 @@ func createServerImplementation(container *ApplicationContainer, tokenAuth *jwta
 		AccessTokenTTLSeconds:  container.configuration.Auth.AccessTokenTTLSeconds,
 		RefreshTokenTTLSeconds: container.configuration.Auth.RefreshTokenTTLSeconds,
 		UsersRepository:        repository.NewUserRepository(container.databaseClient),
+		ItemsRepository:        repository.NewItemRepository(container.databaseClient),
 	}
+	var provider keyencrypt.Provider
+	cryptoCfg := container.configuration.Crypto
+	if strings.TrimSpace(cryptoCfg.VaultAddr) != "" && strings.TrimSpace(cryptoCfg.VaultToken) != "" && strings.TrimSpace(cryptoCfg.VaultKVPath) != "" && strings.TrimSpace(cryptoCfg.MasterKeyHex) != "" {
+		vp, err := keyencrypt.NewVaultProvider(strings.TrimSpace(cryptoCfg.VaultAddr), strings.TrimSpace(cryptoCfg.VaultToken), strings.TrimSpace(cryptoCfg.VaultKVPath), strings.TrimSpace(cryptoCfg.MasterKeyHex))
+		if err == nil {
+			provider = vp
+		}
+	}
+	if provider == nil {
+		provider = &keyencrypt.StaticProvider{Key: make([]byte, 32), Version: 1}
+	}
+	deps.KEKProvider = provider
 	server := api.NewServer(deps)
 	return server
 }

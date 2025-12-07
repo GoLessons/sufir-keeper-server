@@ -1,4 +1,4 @@
-package handler
+package auth
 
 import (
 	"database/sql"
@@ -14,9 +14,7 @@ import (
 	"github.com/GoLessons/sufir-keeper-server/internal/repository"
 )
 
-type RegisterHandler struct {
-	users *repository.UserRepository
-}
+type RegisterHandler struct{ users *repository.UserRepository }
 
 func NewRegisterHandler(users *repository.UserRepository) *RegisterHandler {
 	return &RegisterHandler{users: users}
@@ -53,8 +51,7 @@ func (h *RegisterHandler) Handle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	user := model.NewUser(uuid.New(), login, hashed, time.Now().UTC())
-	_, err = h.users.Save(r.Context(), user)
-	if err != nil {
+	if _, err = h.users.Save(r.Context(), user); err != nil {
 		httputil.WriteError(w, http.StatusInternalServerError, "server_error", "Database error")
 		return
 	}

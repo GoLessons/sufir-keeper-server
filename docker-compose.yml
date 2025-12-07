@@ -52,6 +52,24 @@ services:
     command: ["-path=/migrations", "-database=${DB_DSN:-postgres://keeper:keeper@postgres:5432/keeper?sslmode=disable}", "up"]
     restart: on-failure
 
+  vault:
+    image: hashicorp/vault:1.15.6
+    container_name: keeper-vault
+    environment:
+      - VAULT_DEV_ROOT_TOKEN_ID=${VAULT_TOKEN:-dev-root-token}
+      - VAULT_DEV_LISTEN_ADDRESS=0.0.0.0:8200
+      - VAULT_ADDR=http://127.0.0.1:8200
+    ports:
+      - "8200:8200"
+    cap_add:
+      - IPC_LOCK
+    command: ["server", "-dev"]
+    healthcheck:
+      test: ["CMD-SHELL", "vault status >/dev/null 2>&1 || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
   app:
     build:
       context: .
@@ -67,11 +85,17 @@ services:
       - APP_CONFIG_PATH=/workspace/cmd/server/config.json
       - HTTP_ADDR=0.0.0.0
       - HTTP_PORT=8080
+      - VAULT_ADDR=${VAULT_ADDR:-http://vault:8200}
+      - VAULT_TOKEN=${VAULT_TOKEN:-dev-root-token}
+      - VAULT_KV_PATH=${VAULT_KV_PATH:-keeper/keyencrypt}
+      - MASTER_KEY_HEX=${MASTER_KEY_HEX:-0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef}
     depends_on:
       postgres:
         condition: service_healthy
       migrate:
         condition: service_completed_successfully
+      vault:
+        condition: service_healthy
     command: bash -lc "go run ./cmd/server"
     ports:
       - "8080:8080"
