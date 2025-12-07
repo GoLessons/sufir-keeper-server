@@ -12,7 +12,9 @@ RUN go install golang.org/x/tools/cmd/goimports@v0.38.0 && \
     ln -sf /go/bin/golangci-lint /usr/local/bin/golangci-lint && \
     ln -sf /go/bin/goimports /usr/local/bin/goimports && \
     ln -sf /usr/local/go/bin/go /usr/local/bin/go && \
-    ln -sf /usr/local/go/bin/gofmt /usr/local/bin/gofmt
+    ln -sf /usr/local/go/bin/gofmt /usr/local/bin/gofmt && \
+    go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v2.5.1 && \
+    ln -sf /go/bin/oapi-codegen /usr/local/bin/oapi-codegen
 
 WORKDIR /workspace
 COPY go.mod go.sum /workspace/
