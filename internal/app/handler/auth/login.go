@@ -1,4 +1,4 @@
-package handler
+package auth
 
 import (
 	"database/sql"
@@ -8,6 +8,7 @@ import (
 
 	"github.com/go-chi/jwtauth/v5"
 
+	apitypes "github.com/GoLessons/sufir-keeper-server/internal/api/types"
 	"github.com/GoLessons/sufir-keeper-server/internal/app/httputil"
 	"github.com/GoLessons/sufir-keeper-server/internal/auth"
 	"github.com/GoLessons/sufir-keeper-server/internal/repository"
@@ -27,13 +28,6 @@ func NewLoginHandler(users *repository.UserRepository, tokenAuth *jwtauth.JWTAut
 type loginInput struct {
 	Login    string `json:"login"`
 	Password string `json:"password"`
-}
-
-type authResponseOutput struct {
-	AccessToken  *string `json:"access_token,omitempty"`
-	ExpiresIn    *int    `json:"expires_in,omitempty"`
-	RefreshToken *string `json:"refresh_token,omitempty"`
-	TokenType    *string `json:"token_type,omitempty"`
 }
 
 func (h *LoginHandler) Handle(w http.ResponseWriter, r *http.Request) {
@@ -66,6 +60,6 @@ func (h *LoginHandler) Handle(w http.ResponseWriter, r *http.Request) {
 	_, refreshToken, _ := h.tokenAuth.Encode(map[string]interface{}{"sub": record.ID.String(), "exp": expiresRefresh.Unix(), "typ": "refresh", "ver": currentVersion})
 	tokenType := "bearer"
 	expiresIn := h.accessTokenTTLSeconds
-	response := authResponseOutput{AccessToken: &accessToken, RefreshToken: &refreshToken, TokenType: &tokenType, ExpiresIn: &expiresIn}
+	response := apitypes.AuthResponse{AccessToken: &accessToken, RefreshToken: &refreshToken, TokenType: &tokenType, ExpiresIn: &expiresIn}
 	httputil.WriteJSON(w, http.StatusOK, response)
 }

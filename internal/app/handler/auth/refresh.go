@@ -1,4 +1,4 @@
-package handler
+package auth
 
 import (
 	"net/http"
@@ -8,6 +8,7 @@ import (
 	"github.com/go-chi/jwtauth/v5"
 	"github.com/google/uuid"
 
+	apitypes "github.com/GoLessons/sufir-keeper-server/internal/api/types"
 	"github.com/GoLessons/sufir-keeper-server/internal/app/httputil"
 	"github.com/GoLessons/sufir-keeper-server/internal/repository"
 )
@@ -121,13 +122,7 @@ func (h *RefreshHandler) Handle(w http.ResponseWriter, r *http.Request) {
 	_, refreshToken, _ := h.tokenAuth.Encode(map[string]interface{}{"sub": subject, "exp": expiresRefresh.Unix(), "typ": "refresh", "ver": newVersion})
 	tokenType := "bearer"
 	expiresIn := h.accessTokenTTLSeconds
-	type authResponseOutput struct {
-		AccessToken  *string `json:"access_token,omitempty"`
-		ExpiresIn    *int    `json:"expires_in,omitempty"`
-		RefreshToken *string `json:"refresh_token,omitempty"`
-		TokenType    *string `json:"token_type,omitempty"`
-	}
-	response := authResponseOutput{AccessToken: &accessToken, RefreshToken: &refreshToken, TokenType: &tokenType, ExpiresIn: &expiresIn}
+	response := apitypes.AuthResponse{AccessToken: &accessToken, RefreshToken: &refreshToken, TokenType: &tokenType, ExpiresIn: &expiresIn}
 	httputil.WriteJSON(w, http.StatusOK, response)
 }
 

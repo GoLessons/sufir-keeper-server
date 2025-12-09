@@ -14,6 +14,7 @@ import (
 )
 
 type AppConfig struct {
+	Crypto CryptoConfig   `json:"crypto"`
 	Log    LogConfig      `json:"log"`
 	Auth   AuthConfig     `json:"auth"`
 	DB     DatabaseConfig `json:"db"`
@@ -48,6 +49,13 @@ type AuthConfig struct {
 	JwtSecret              string `json:"jwt_secret" env:"AUTH_JWT_SECRET" flag:"auth-secret"`
 	AccessTokenTTLSeconds  int    `json:"access_token_ttl_seconds" env:"AUTH_ACCESS_TTL" flag:"auth-access-ttl"`
 	RefreshTokenTTLSeconds int    `json:"refresh_token_ttl_seconds" env:"AUTH_REFRESH_TTL" flag:"auth-refresh-ttl"`
+}
+
+type CryptoConfig struct {
+	MasterKeyHex string `json:"master_key_hex" env:"MASTER_KEY_HEX" flag:"crypto-master-hex"`
+	VaultAddr    string `json:"vault_addr" env:"VAULT_ADDR" flag:"vault-addr"`
+	VaultToken   string `json:"vault_token" env:"VAULT_TOKEN" flag:"vault-token"`
+	VaultKVPath  string `json:"vault_kv_path" env:"VAULT_KV_PATH" flag:"vault-kv-path"`
 }
 
 func LoadApplicationConfiguration() (AppConfig, error) {
