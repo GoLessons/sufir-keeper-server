@@ -8,7 +8,7 @@ import (
 
 	"github.com/go-chi/jwtauth/v5"
 
-	"github.com/GoLessons/sufir-keeper-server/internal/api"
+	apitypes "github.com/GoLessons/sufir-keeper-server/internal/api/types"
 )
 
 func TestAuthRequiredMiddleware_RejectsRefreshToken(t *testing.T) {
@@ -29,7 +29,7 @@ func TestAuthRequiredMiddleware_RejectsRefreshToken(t *testing.T) {
 	if rr.Code != http.StatusUnauthorized {
 		t.Fatalf("expected 401, got %d", rr.Code)
 	}
-	var e api.Error
+	var e apitypes.Error
 	_ = json.Unmarshal(rr.Body.Bytes(), &e)
 	if e.Message == nil || *e.Message != "Access token required" {
 		t.Fatalf("expected message 'Access token required', got %v", e.Message)

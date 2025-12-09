@@ -2,9 +2,12 @@
 package: api
 generate:
   chi-server: true
-  models: true
+  models: false
 output: ../../internal/api/generated.go
+import-mapping:
+  ../../docs/schema.yaml: github.com/GoLessons/sufir-keeper-server/internal/api/types
 output-options:
+  # Используем шаблоны для chi-сервера
   user-templates:
     chi/chi-middleware.tmpl: ../../tools/oapi-templates/chi-middleware.tmpl
     chi/chi-handler.tmpl: ../../tools/oapi-templates/chi-handler.tmpl

@@ -14,7 +14,7 @@ import (
 	"github.com/GoLessons/sufir-keeper-server/internal/repository"
 )
 
-func (h *Handler) HandleUpdate(w http.ResponseWriter, r *http.Request, id uuid.UUID) {
+func (h *UpdateHandler) Handle(w http.ResponseWriter, r *http.Request, id uuid.UUID) {
 	userID, ok := userIDFromRequest(r)
 	if !ok {
 		httputil.WriteError(w, http.StatusUnauthorized, "unauthorized", "Invalid or expired token")
@@ -42,11 +42,17 @@ func (h *Handler) HandleUpdate(w http.ResponseWriter, r *http.Request, id uuid.U
 		var dtype struct {
 			Type string `json:"type"`
 		}
-		if err := json.Unmarshal(*body.Data, &dtype); err != nil || strings.TrimSpace(dtype.Type) == "" {
+		if err := json.Unmarshal(*body.Data, &dtype); err != nil {
 			httputil.WriteError(w, http.StatusBadRequest, "invalid_data", "Invalid data type")
 			return
 		}
-		disc := strings.TrimSpace(dtype.Type)
+		disc := strings.ToUpper(strings.TrimSpace(dtype.Type))
+		switch disc {
+		case "CREDENTIAL", "CARD", "TEXT", "BINARY":
+		default:
+			httputil.WriteError(w, http.StatusBadRequest, "invalid_data", "Invalid data type")
+			return
+		}
 		itemDataEncryptionKey := make([]byte, 32)
 		if _, err := io.ReadFull(rand.Reader, itemDataEncryptionKey); err != nil {
 			httputil.WriteError(w, http.StatusInternalServerError, "server_error", "Key generation error")
@@ -74,8 +80,8 @@ func (h *Handler) HandleUpdate(w http.ResponseWriter, r *http.Request, id uuid.U
 		upd.DataKeyEncrypted = &encryptedDataKey
 		upd.DataKeyNonce = &dataKeyNonce
 		upd.KEKVersion = &keyEncryptionKeyVersion
-		v := disc
-		upd.Type = &v
+		typeStringValue := disc
+		upd.Type = &typeStringValue
 		respData = *body.Data
 	}
 	rec, err := h.itemsRepo.Update(r.Context(), userID, id, upd)

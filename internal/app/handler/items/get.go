@@ -10,7 +10,7 @@ import (
 	"github.com/GoLessons/sufir-keeper-server/internal/crypto/aead"
 )
 
-func (h *Handler) HandleGet(w http.ResponseWriter, r *http.Request, id uuid.UUID) {
+func (h *GetHandler) Handle(w http.ResponseWriter, r *http.Request, id uuid.UUID) {
 	userID, ok := userIDFromRequest(r)
 	if !ok {
 		httputil.WriteError(w, http.StatusUnauthorized, "unauthorized", "Invalid or expired token")
@@ -33,10 +33,10 @@ func (h *Handler) HandleGet(w http.ResponseWriter, r *http.Request, id uuid.UUID
 		return
 	}
 	dataAAD := []byte(rec.UserID.String() + "|" + rec.ID.String() + "|" + rec.Type)
-	raw, err := aead.Decrypt(itemDataEncryptionKey, dataAAD, rec.DataNonce, rec.DataEncrypted)
+	decryptedDataBytes, err := aead.Decrypt(itemDataEncryptionKey, dataAAD, rec.DataNonce, rec.DataEncrypted)
 	if err != nil {
 		httputil.WriteError(w, http.StatusInternalServerError, "server_error", "Decrypt error")
 		return
 	}
-	writeItemResponse(w, http.StatusOK, rec, json.RawMessage(raw))
+	writeItemResponse(w, http.StatusOK, rec, json.RawMessage(decryptedDataBytes))
 }
