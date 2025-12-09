@@ -3,11 +3,13 @@ package config
 import (
 	"context"
 	"net/http"
+	"strings"
 
 	"go.uber.org/multierr"
 	"go.uber.org/zap"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/jwtauth/v5"
 
 	"github.com/GoLessons/sufir-keeper-server/internal/api"
 	"github.com/GoLessons/sufir-keeper-server/internal/db"
@@ -55,6 +57,7 @@ func Initialize(parentContext context.Context) (*ApplicationContainer, error) {
 	}
 	serverImpl := createServerImplementation(tmpContainer, tokenAuth)
 	handler := api.Handler(serverImpl, options)
+	authVerify(router)
 	if configuration.Server.MaxBodyBytes > 0 {
 		httpServer.Handler = http.MaxBytesHandler(handler, configuration.Server.MaxBodyBytes)
 	} else {
@@ -67,6 +70,31 @@ func Initialize(parentContext context.Context) (*ApplicationContainer, error) {
 		router:         router,
 		httpServer:     httpServer,
 	}, nil
+}
+
+func authVerify(router *chi.Mux) {
+	verify := func(w http.ResponseWriter, r *http.Request) {
+		_, claims, err := jwtauth.FromContext(r.Context())
+		if err != nil || claims == nil {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		t, _ := claims["typ"].(string)
+		if strings.ToLower(strings.TrimSpace(t)) != "access" {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		sub, _ := claims["sub"].(string)
+		if strings.TrimSpace(sub) == "" {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		w.Header().Set("X-User-Id", strings.TrimSpace(sub))
+		w.WriteHeader(http.StatusNoContent)
+	}
+
+	router.Post("/auth-verify", verify)
+	router.Get("/auth-verify", verify)
 }
 
 func (container *ApplicationContainer) Close() error {

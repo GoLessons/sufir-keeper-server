@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -12,6 +13,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/GoLessons/sufir-keeper-server/internal/api"
+	fileshandler "github.com/GoLessons/sufir-keeper-server/internal/app/handler/files"
 	"github.com/GoLessons/sufir-keeper-server/internal/app/middleware"
 	"github.com/GoLessons/sufir-keeper-server/internal/crypto/keyencrypt"
 	"github.com/GoLessons/sufir-keeper-server/internal/db"
@@ -75,18 +77,21 @@ func createHTTPServerAndRouter(configuration AppConfig) (*chi.Mux, *http.Server)
 func createChiServerOptions(router *chi.Mux, logger *zap.Logger, configuration AppConfig, tokenAuth *jwtauth.JWTAuth) api.ChiServerOptions {
 	common := []api.MiddlewareFunc{
 		middleware.RecoverMiddleware(),
-		middleware.ContentTypeValidationMiddleware(),
 		middleware.LoggingMiddleware(logger, middleware.HTTPLogLevels{Success: strings.TrimSpace(configuration.Log.LevelSuccess), ClientError: strings.TrimSpace(configuration.Log.LevelClientError), ServerError: strings.TrimSpace(configuration.Log.LevelServerError)}),
 	}
-	protected := []api.MiddlewareFunc{middleware.AuthRequiredMiddleware(tokenAuth)}
+	protected := middleware.AuthRequiredMiddleware(tokenAuth)
+	jsonOnly := middleware.ContentTypeValidationMiddleware()
 	middlewares := map[string][]api.MiddlewareFunc{
 		"common":             common,
-		"DELETE /auth":       protected,
-		"GET /items":         protected,
-		"POST /items":        protected,
-		"GET /items/{id}":    protected,
-		"PUT /items/{id}":    protected,
-		"DELETE /items/{id}": protected,
+		"DELETE /auth":       {protected},
+		"POST /auth":         {jsonOnly},
+		"PATCH /auth":        {jsonOnly},
+		"POST /register":     {jsonOnly},
+		"POST /items":        {protected, jsonOnly},
+		"PUT /items/{id}":    {protected, jsonOnly},
+		"GET /items":         {protected, jsonOnly},
+		"GET /items/{id}":    {protected, jsonOnly},
+		"DELETE /items/{id}": {protected},
 	}
 	return api.ChiServerOptions{BaseURL: "", BaseRouter: router, Middlewares: middlewares, ErrorHandlerFunc: api.DefaultErrorHandler}
 }
@@ -117,7 +122,9 @@ func createServerImplementation(container *ApplicationContainer, tokenAuth *jwta
 	s3Cfg := container.configuration.S3
 	if strings.TrimSpace(s3Cfg.Endpoint) != "" && strings.TrimSpace(s3Cfg.AccessKey) != "" && strings.TrimSpace(s3Cfg.SecretKey) != "" && strings.TrimSpace(s3Cfg.Bucket) != "" {
 		if client, err := s3.NewClient(strings.TrimSpace(s3Cfg.Endpoint), strings.TrimSpace(s3Cfg.AccessKey), strings.TrimSpace(s3Cfg.SecretKey), strings.TrimSpace(s3Cfg.Bucket)); err == nil {
-			_ = client // пока только инициализируем, использование будет добавлено позже
+			_ = client.EnsureBucket(context.Background())
+			wh := fileshandler.NewWebhookHandler(repository.NewItemRepository(container.databaseClient), client, provider, strings.TrimSpace(os.Getenv("MINIO_WEBHOOK_SECRET")))
+			container.router.Post("/files/webhook-minio", wh.Handle)
 		}
 	}
 	server := api.NewServer(deps)

@@ -91,6 +91,7 @@ services:
       - S3_ACCESS_KEY=${S3_ACCESS_KEY:-minioadmin}
       - S3_SECRET_KEY=${S3_SECRET_KEY:-minioadmin}
       - S3_BUCKET=${S3_BUCKET:-keeper}
+      - MINIO_WEBHOOK_SECRET=${MINIO_WEBHOOK_SECRET:-dev-webhook-secret}
     depends_on:
       postgres:
         condition: service_healthy
@@ -108,8 +109,23 @@ services:
     environment:
       - MINIO_ROOT_USER=${MINIO_ROOT_USER:-minioadmin}
       - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD:-minioadmin}
+      - MINIO_NOTIFY_WEBHOOK_ENABLE_1=true
+      - MINIO_NOTIFY_WEBHOOK_ENDPOINT_1=http://app:8080/files/webhook-minio
+      - MINIO_NOTIFY_WEBHOOK_AUTH_TOKEN_1=${MINIO_WEBHOOK_SECRET:-dev-webhook-secret}
+      - MINIO_NOTIFY_WEBHOOK_QUEUE_DIR_1=/data/webhook-queue
+      - MINIO_NOTIFY_WEBHOOK_QUEUE_LIMIT_1=1000
     volumes:
       - minio-data:/data
+    entrypoint: ["/bin/sh","-c"]
+    command: >-
+      /usr/bin/minio server /data --console-address :9001 &
+      until nc -z localhost 9000; do sleep 0.5; done;
+      mc config host add myminio http://localhost:9000 "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD" --api S3v4;
+      mc mb -p myminio/"${S3_BUCKET:-keeper}" || true;
+      mc event add myminio/"${S3_BUCKET:-keeper}" arn:minio:sqs::1:webhook --event put,post,copy,multipart || true;
+      mc anonymous set none myminio/"${S3_BUCKET:-keeper}" || true;
+      while true; do sleep 3600; done
+
 
   swagger-ui:
     build:

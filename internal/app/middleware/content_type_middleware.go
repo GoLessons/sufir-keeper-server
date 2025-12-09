@@ -15,7 +15,8 @@ func ContentTypeValidationMiddleware() api.MiddlewareFunc {
 			method := strings.ToUpper(r.Method)
 			if method == http.MethodPost || method == http.MethodPut || method == http.MethodPatch {
 				ct := strings.ToLower(strings.TrimSpace(r.Header.Get("Content-Type")))
-				if strings.HasPrefix(r.URL.Path, "/files") {
+				p := strings.ToLower(strings.TrimSpace(r.URL.Path))
+				if strings.HasPrefix(p, "/files") {
 					if ct == "" || !strings.HasPrefix(ct, "multipart/form-data") {
 						writeUnsupportedMediaType(w, "multipart/form-data")
 						return
