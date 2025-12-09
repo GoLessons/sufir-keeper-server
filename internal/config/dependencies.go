@@ -121,11 +121,12 @@ func createServerImplementation(container *ApplicationContainer, tokenAuth *jwta
 
 	s3Cfg := container.configuration.S3
 	if strings.TrimSpace(s3Cfg.Endpoint) != "" && strings.TrimSpace(s3Cfg.AccessKey) != "" && strings.TrimSpace(s3Cfg.SecretKey) != "" && strings.TrimSpace(s3Cfg.Bucket) != "" {
-		if client, err := s3.NewClient(strings.TrimSpace(s3Cfg.Endpoint), strings.TrimSpace(s3Cfg.AccessKey), strings.TrimSpace(s3Cfg.SecretKey), strings.TrimSpace(s3Cfg.Bucket)); err == nil {
-			_ = client.EnsureBucket(context.Background())
-			wh := fileshandler.NewWebhookHandler(repository.NewItemRepository(container.databaseClient), client, provider, strings.TrimSpace(os.Getenv("MINIO_WEBHOOK_SECRET")))
-			container.router.Post("/files/webhook-minio", wh.Handle)
-		}
+        if client, err := s3.NewClient(strings.TrimSpace(s3Cfg.Endpoint), strings.TrimSpace(s3Cfg.AccessKey), strings.TrimSpace(s3Cfg.SecretKey), strings.TrimSpace(s3Cfg.Bucket)); err == nil {
+            _ = client.EnsureBucket(context.Background())
+            _ = client.SetBucketWebhookCreatedEvents(context.Background())
+            wh := fileshandler.NewWebhookHandler(repository.NewItemRepository(container.databaseClient), client, provider, strings.TrimSpace(os.Getenv("MINIO_WEBHOOK_SECRET")))
+            container.router.Post("/files/webhook-minio", wh.Handle)
+        }
 	}
 	authVerify(container.router)
 	server := api.NewServer(deps)

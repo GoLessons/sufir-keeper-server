@@ -9,6 +9,7 @@ import (
 
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
+	"github.com/minio/minio-go/v7/pkg/notification"
 )
 
 type Client struct {
@@ -75,4 +76,14 @@ func (c *Client) PutObject(ctx context.Context, key string, reader io.Reader, si
 	return c.minio.PutObject(ctx, c.bucket, strings.TrimSpace(key), reader, size, opts)
 }
 
-// SetBucketWebhookCreatedEvents intentionally removed: bucket notifications are configured by container init.
+func (c *Client) SetBucketWebhookCreatedEvents(ctx context.Context) error {
+	cfg := notification.Configuration{
+		QueueConfigs: []notification.QueueConfig{
+			{
+				Arn:    "arn:minio:sqs::1:webhook",
+				Events: []string{"s3:ObjectCreated:Put", "s3:ObjectCreated:Post", "s3:ObjectCreated:Copy", "s3:ObjectCreated:CompleteMultipartUpload"},
+			},
+		},
+	}
+	return c.minio.SetBucketNotification(ctx, c.bucket, cfg)
+}
