@@ -7,12 +7,52 @@ import (
 	"github.com/GoLessons/sufir-keeper-server/internal/repository"
 )
 
-type Handler struct {
+type CreateHandler struct {
 	itemsRepo *repository.ItemRepository
 	kek       keyencrypt.Provider
 	tokenAuth *jwtauth.JWTAuth
 }
 
-func NewHandler(items *repository.ItemRepository, kek keyencrypt.Provider, tokenAuth *jwtauth.JWTAuth) *Handler {
-	return &Handler{itemsRepo: items, kek: kek, tokenAuth: tokenAuth}
+type ListHandler struct {
+	itemsRepo *repository.ItemRepository
+	kek       keyencrypt.Provider
+	tokenAuth *jwtauth.JWTAuth
+}
+
+type GetHandler struct {
+	itemsRepo *repository.ItemRepository
+	kek       keyencrypt.Provider
+	tokenAuth *jwtauth.JWTAuth
+}
+
+type UpdateHandler struct {
+	itemsRepo *repository.ItemRepository
+	kek       keyencrypt.Provider
+	tokenAuth *jwtauth.JWTAuth
+}
+
+type DeleteHandler struct {
+	itemsRepo *repository.ItemRepository
+	kek       keyencrypt.Provider
+	tokenAuth *jwtauth.JWTAuth
+}
+
+func NewCreateHandler(items *repository.ItemRepository, kek keyencrypt.Provider, tokenAuth *jwtauth.JWTAuth) *CreateHandler {
+	return &CreateHandler{itemsRepo: items, kek: kek, tokenAuth: tokenAuth}
+}
+
+func NewListHandler(items *repository.ItemRepository, kek keyencrypt.Provider, tokenAuth *jwtauth.JWTAuth) *ListHandler {
+	return &ListHandler{itemsRepo: items, kek: kek, tokenAuth: tokenAuth}
+}
+
+func NewGetHandler(items *repository.ItemRepository, kek keyencrypt.Provider, tokenAuth *jwtauth.JWTAuth) *GetHandler {
+	return &GetHandler{itemsRepo: items, kek: kek, tokenAuth: tokenAuth}
+}
+
+func NewUpdateHandler(items *repository.ItemRepository, kek keyencrypt.Provider, tokenAuth *jwtauth.JWTAuth) *UpdateHandler {
+	return &UpdateHandler{itemsRepo: items, kek: kek, tokenAuth: tokenAuth}
+}
+
+func NewDeleteHandler(items *repository.ItemRepository, kek keyencrypt.Provider, tokenAuth *jwtauth.JWTAuth) *DeleteHandler {
+	return &DeleteHandler{itemsRepo: items, kek: kek, tokenAuth: tokenAuth}
 }

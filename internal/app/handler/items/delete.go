@@ -8,7 +8,7 @@ import (
 	"github.com/GoLessons/sufir-keeper-server/internal/app/httputil"
 )
 
-func (h *Handler) HandleDelete(w http.ResponseWriter, r *http.Request, id uuid.UUID) {
+func (h *DeleteHandler) Handle(w http.ResponseWriter, r *http.Request, id uuid.UUID) {
 	userID, ok := userIDFromRequest(r)
 	if !ok {
 		httputil.WriteError(w, http.StatusUnauthorized, "unauthorized", "Invalid or expired token")

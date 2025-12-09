@@ -6,7 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/GoLessons/sufir-keeper-server/internal/api"
+	apitypes "github.com/GoLessons/sufir-keeper-server/internal/api/types"
 )
 
 func TestContentTypeValidationMiddleware_JSONRequired(t *testing.T) {
@@ -24,7 +24,7 @@ func TestContentTypeValidationMiddleware_JSONRequired(t *testing.T) {
 	if rr.Code != http.StatusUnsupportedMediaType {
 		t.Fatalf("expected 415, got %d", rr.Code)
 	}
-	var e api.Error
+	var e apitypes.Error
 	_ = json.Unmarshal(rr.Body.Bytes(), &e)
 	if e.Message == nil || *e.Message != "content type must be application/json" {
 		t.Fatalf("unexpected message: %v", e.Message)
@@ -46,7 +46,7 @@ func TestContentTypeValidationMiddleware_FilesMultipartRequired(t *testing.T) {
 	if rr.Code != http.StatusUnsupportedMediaType {
 		t.Fatalf("expected 415, got %d", rr.Code)
 	}
-	var e api.Error
+	var e apitypes.Error
 	_ = json.Unmarshal(rr.Body.Bytes(), &e)
 	if e.Message == nil || *e.Message != "content type must be multipart/form-data" {
 		t.Fatalf("unexpected message: %v", e.Message)

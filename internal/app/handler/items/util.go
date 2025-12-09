@@ -27,6 +27,8 @@ func userIDFromRequest(r *http.Request) (uuid.UUID, bool) {
 	return id, true
 }
 
+// контекстные костыли удалены; параметры передаются напрямую в методы Handle
+
 func defaultLimit(v *int) int {
 	if v == nil || *v <= 0 {
 		return 20
@@ -43,8 +45,6 @@ func defaultOffset(v *int) int {
 	}
 	return *v
 }
-
-// local fallback types removed after switching to apitypes
 
 func writeItemResponse(w http.ResponseWriter, status int, rec model.ItemRecord, data json.RawMessage) {
 	id := openapi_types.UUID(rec.ID)

@@ -15,7 +15,7 @@ import (
 	"github.com/GoLessons/sufir-keeper-server/internal/model"
 )
 
-func (h *Handler) HandleCreate(w http.ResponseWriter, r *http.Request) {
+func (h *CreateHandler) Handle(w http.ResponseWriter, r *http.Request) {
 	userID, ok := userIDFromRequest(r)
 	if !ok {
 		httputil.WriteError(w, http.StatusUnauthorized, "unauthorized", "Invalid or expired token")
@@ -33,11 +33,17 @@ func (h *Handler) HandleCreate(w http.ResponseWriter, r *http.Request) {
 	var dtype struct {
 		Type string `json:"type"`
 	}
-	if err := json.Unmarshal(body.Data, &dtype); err != nil || strings.TrimSpace(dtype.Type) == "" {
+	if err := json.Unmarshal(body.Data, &dtype); err != nil {
 		httputil.WriteError(w, http.StatusBadRequest, "invalid_data", "Invalid data type")
 		return
 	}
-	disc := strings.TrimSpace(dtype.Type)
+	disc := strings.ToUpper(strings.TrimSpace(dtype.Type))
+	switch disc {
+	case "CREDENTIAL", "CARD", "TEXT", "BINARY":
+	default:
+		httputil.WriteError(w, http.StatusBadRequest, "invalid_data", "Invalid data type")
+		return
+	}
 	itemID := uuid.New()
 	itemDataEncryptionKey := make([]byte, 32)
 	if _, err := io.ReadFull(rand.Reader, itemDataEncryptionKey); err != nil {

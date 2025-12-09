@@ -27,15 +27,19 @@ type ServerDependencies struct {
 
 type Server struct {
 	Unimplemented
-	kek      keyencrypt.Provider
-	users    *repository.UserRepository
-	items    *repository.ItemRepository
-	login    *authhandler.LoginHandler
-	refresh  *authhandler.RefreshHandler
-	register *authhandler.RegisterHandler
-	logout   *authhandler.LogoutHandler
-	itemsH   *itemshandler.Handler
-	deps     ServerDependencies
+	kek         keyencrypt.Provider
+	users       *repository.UserRepository
+	items       *repository.ItemRepository
+	login       *authhandler.LoginHandler
+	refresh     *authhandler.RefreshHandler
+	register    *authhandler.RegisterHandler
+	logout      *authhandler.LogoutHandler
+	itemsCreate *itemshandler.CreateHandler
+	itemsList   *itemshandler.ListHandler
+	itemsGet    *itemshandler.GetHandler
+	itemsUpdate *itemshandler.UpdateHandler
+	itemsDelete *itemshandler.DeleteHandler
+	deps        ServerDependencies
 }
 
 func NewServer(deps ServerDependencies) *Server {
@@ -46,15 +50,19 @@ func NewServer(deps ServerDependencies) *Server {
 		kekProvider = p
 	}
 	return &Server{
-		deps:     deps,
-		users:    users,
-		items:    items,
-		login:    authhandler.NewLoginHandler(users, deps.TokenAuth, deps.AccessTokenTTLSeconds, deps.RefreshTokenTTLSeconds),
-		refresh:  authhandler.NewRefreshHandler(users, deps.TokenAuth, deps.AccessTokenTTLSeconds, deps.RefreshTokenTTLSeconds),
-		register: authhandler.NewRegisterHandler(users),
-		logout:   authhandler.NewLogoutHandler(users, deps.TokenAuth),
-		itemsH:   itemshandler.NewHandler(items, kekProvider, deps.TokenAuth),
-		kek:      kekProvider,
+		deps:        deps,
+		users:       users,
+		items:       items,
+		login:       authhandler.NewLoginHandler(users, deps.TokenAuth, deps.AccessTokenTTLSeconds, deps.RefreshTokenTTLSeconds),
+		refresh:     authhandler.NewRefreshHandler(users, deps.TokenAuth, deps.AccessTokenTTLSeconds, deps.RefreshTokenTTLSeconds),
+		register:    authhandler.NewRegisterHandler(users),
+		logout:      authhandler.NewLogoutHandler(users, deps.TokenAuth),
+		itemsCreate: itemshandler.NewCreateHandler(items, kekProvider, deps.TokenAuth),
+		itemsList:   itemshandler.NewListHandler(items, kekProvider, deps.TokenAuth),
+		itemsGet:    itemshandler.NewGetHandler(items, kekProvider, deps.TokenAuth),
+		itemsUpdate: itemshandler.NewUpdateHandler(items, kekProvider, deps.TokenAuth),
+		itemsDelete: itemshandler.NewDeleteHandler(items, kekProvider, deps.TokenAuth),
+		kek:         kekProvider,
 	}
 }
 
@@ -63,46 +71,19 @@ func (s *Server) RefreshToken(w http.ResponseWriter, r *http.Request) { s.refres
 func (s *Server) LoginUser(w http.ResponseWriter, r *http.Request)    { s.login.Handle(w, r) }
 func (s *Server) RegisterUser(w http.ResponseWriter, r *http.Request) { s.register.Handle(w, r) }
 
-func (s *Server) CreateItem(w http.ResponseWriter, r *http.Request) { s.itemsH.HandleCreate(w, r) }
-
+func (s *Server) CreateItem(w http.ResponseWriter, r *http.Request) { s.itemsCreate.Handle(w, r) }
 func (s *Server) GetItems(w http.ResponseWriter, r *http.Request, params GetItemsParams) {
-	var fType *string
-	if params.Type != nil {
-		v := string(*params.Type)
-		fType = &v
-	}
-	lim := s.defaultLimit(params.Limit)
-	off := s.defaultOffset(params.Offset)
-	s.itemsH.HandleList(w, r, fType, params.S, lim, off)
+	s.itemsList.Handle(w, r, params)
 }
 
 func (s *Server) GetItem(w http.ResponseWriter, r *http.Request, id apiTypes.UUID) {
-	s.itemsH.HandleGet(w, r, uuid.UUID(id))
+	s.itemsGet.Handle(w, r, uuid.UUID(id))
 }
 
 func (s *Server) UpdateItem(w http.ResponseWriter, r *http.Request, id apiTypes.UUID) {
-	s.itemsH.HandleUpdate(w, r, uuid.UUID(id))
+	s.itemsUpdate.Handle(w, r, uuid.UUID(id))
 }
 
 func (s *Server) DeleteItem(w http.ResponseWriter, r *http.Request, id apiTypes.UUID) {
-	s.itemsH.HandleDelete(w, r, uuid.UUID(id))
+	s.itemsDelete.Handle(w, r, uuid.UUID(id))
 }
-
-func (s *Server) defaultLimit(v *int) int {
-	if v == nil || *v <= 0 {
-		return 20
-	}
-	if *v > 100 {
-		return 100
-	}
-	return *v
-}
-
-func (s *Server) defaultOffset(v *int) int {
-	if v == nil || *v < 0 {
-		return 0
-	}
-	return *v
-}
-
-// item response construction moved to app/handler

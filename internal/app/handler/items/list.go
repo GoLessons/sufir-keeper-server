@@ -7,25 +7,33 @@ import (
 	"github.com/GoLessons/sufir-keeper-server/internal/app/httputil"
 )
 
-func (h *Handler) HandleList(w http.ResponseWriter, r *http.Request, filterType *string, search *string, limit int, offset int) {
+func (h *ListHandler) Handle(w http.ResponseWriter, r *http.Request, params apitypes.GetItemsParams) {
+	var filterType *string
+	if params.Type != nil {
+		v := string(*params.Type)
+		filterType = &v
+	}
+
 	userID, ok := userIDFromRequest(r)
 	if !ok {
 		httputil.WriteError(w, http.StatusUnauthorized, "unauthorized", "Invalid or expired token")
 		return
 	}
-	res, err := h.itemsRepo.List(r.Context(), userID, filterType, search, defaultLimit(&limit), defaultOffset(&offset))
+	limitValue := defaultLimit(params.Limit)
+	offsetValue := defaultOffset(params.Offset)
+	listResult, err := h.itemsRepo.List(r.Context(), userID, filterType, params.S, limitValue, offsetValue)
 	if err != nil {
 		httputil.WriteError(w, http.StatusInternalServerError, "server_error", "Database error")
 		return
 	}
-	out := struct {
+	responseOutput := struct {
 		Items  []apitypes.ItemListResponse `json:"items"`
 		Total  int                         `json:"total"`
 		Limit  int                         `json:"limit"`
 		Offset int                         `json:"offset"`
-	}{Items: make([]apitypes.ItemListResponse, 0, len(res.Items)), Total: res.Total, Limit: defaultLimit(&limit), Offset: defaultOffset(&offset)}
-	for _, it := range res.Items {
-		out.Items = append(out.Items, makeItemListJSON(it))
+	}{Items: make([]apitypes.ItemListResponse, 0, len(listResult.Items)), Total: listResult.Total, Limit: limitValue, Offset: offsetValue}
+	for _, itemRecord := range listResult.Items {
+		responseOutput.Items = append(responseOutput.Items, makeItemListJSON(itemRecord))
 	}
-	httputil.WriteJSON(w, http.StatusOK, out)
+	httputil.WriteJSON(w, http.StatusOK, responseOutput)
 }
