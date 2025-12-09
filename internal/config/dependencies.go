@@ -16,6 +16,7 @@ import (
 	"github.com/GoLessons/sufir-keeper-server/internal/crypto/keyencrypt"
 	"github.com/GoLessons/sufir-keeper-server/internal/db"
 	"github.com/GoLessons/sufir-keeper-server/internal/repository"
+	"github.com/GoLessons/sufir-keeper-server/internal/s3"
 )
 
 func createApplicationLogger() (*zap.Logger, error) {
@@ -112,6 +113,13 @@ func createServerImplementation(container *ApplicationContainer, tokenAuth *jwta
 		provider = &keyencrypt.StaticProvider{Key: make([]byte, 32), Version: 1}
 	}
 	deps.KEKProvider = provider
+
+	s3Cfg := container.configuration.S3
+	if strings.TrimSpace(s3Cfg.Endpoint) != "" && strings.TrimSpace(s3Cfg.AccessKey) != "" && strings.TrimSpace(s3Cfg.SecretKey) != "" && strings.TrimSpace(s3Cfg.Bucket) != "" {
+		if client, err := s3.NewClient(strings.TrimSpace(s3Cfg.Endpoint), strings.TrimSpace(s3Cfg.AccessKey), strings.TrimSpace(s3Cfg.SecretKey), strings.TrimSpace(s3Cfg.Bucket)); err == nil {
+			_ = client // пока только инициализируем, использование будет добавлено позже
+		}
+	}
 	server := api.NewServer(deps)
 	return server
 }
