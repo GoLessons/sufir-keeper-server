@@ -127,8 +127,34 @@ func createServerImplementation(container *ApplicationContainer, tokenAuth *jwta
 			container.router.Post("/files/webhook-minio", wh.Handle)
 		}
 	}
+	authVerify(container.router)
 	server := api.NewServer(deps)
 	return server
+}
+
+func authVerify(router *chi.Mux) {
+	verify := func(w http.ResponseWriter, r *http.Request) {
+		_, claims, err := jwtauth.FromContext(r.Context())
+		if err != nil || claims == nil {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		t, _ := claims["typ"].(string)
+		if strings.ToLower(strings.TrimSpace(t)) != "access" {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		sub, _ := claims["sub"].(string)
+		if strings.TrimSpace(sub) == "" {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		w.Header().Set("X-User-Id", strings.TrimSpace(sub))
+		w.WriteHeader(http.StatusNoContent)
+	}
+
+	router.Post("/auth-verify", verify)
+	router.Get("/auth-verify", verify)
 }
 
 func createJWTAuth(configuration AppConfig) (*jwtauth.JWTAuth, error) {
