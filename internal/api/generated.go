@@ -23,6 +23,8 @@ type ServerInterface interface {
 
 	UploadFile(w http.ResponseWriter, r *http.Request, params UploadFileParams)
 
+	PresignFile(w http.ResponseWriter, r *http.Request)
+
 	DownloadFile(w http.ResponseWriter, r *http.Request, fileId openapi_types.UUID)
 
 	GetItems(w http.ResponseWriter, r *http.Request, params GetItemsParams)
@@ -53,6 +55,10 @@ func (Unimplemented) LoginUser(w http.ResponseWriter, r *http.Request) {
 }
 
 func (Unimplemented) UploadFile(w http.ResponseWriter, r *http.Request, params UploadFileParams) {
+	http.Error(w, "not implemented", http.StatusNotImplemented)
+}
+
+func (Unimplemented) PresignFile(w http.ResponseWriter, r *http.Request) {
 	http.Error(w, "not implemented", http.StatusNotImplemented)
 }
 
@@ -182,6 +188,26 @@ func (siw *ServerInterfaceWrapper) UploadFile(w http.ResponseWriter, r *http.Req
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.UploadFile(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PresignFile operation middleware
+func (siw *ServerInterfaceWrapper) PresignFile(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PresignFile(w, r)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -547,6 +573,12 @@ func Handler(si ServerInterface, options ChiServerOptions) http.Handler {
 			r.Use(middlewares...)
 		}
 		r.Post(options.BaseURL+"/files", wrapper.UploadFile)
+	})
+	r.Group(func(r chi.Router) {
+		if middlewares, ok := options.Middlewares["POST /files/presign"]; ok && len(middlewares) > 0 {
+			r.Use(middlewares...)
+		}
+		r.Post(options.BaseURL+"/files/presign", wrapper.PresignFile)
 	})
 	r.Group(func(r chi.Router) {
 		if middlewares, ok := options.Middlewares["GET /files/{fileId}"]; ok && len(middlewares) > 0 {
