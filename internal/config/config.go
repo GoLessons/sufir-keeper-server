@@ -60,10 +60,11 @@ type CryptoConfig struct {
 }
 
 type S3Config struct {
-	Endpoint  string `json:"endpoint" env:"S3_ENDPOINT" flag:"s3-endpoint"`
-	AccessKey string `json:"access_key" env:"S3_ACCESS_KEY" flag:"s3-access-key"`
-	SecretKey string `json:"secret_key" env:"S3_SECRET_KEY" flag:"s3-secret-key"`
-	Bucket    string `json:"bucket" env:"S3_BUCKET" flag:"s3-bucket"`
+	Endpoint      string `json:"endpoint" env:"S3_ENDPOINT" flag:"s3-endpoint"`
+	AccessKey     string `json:"access_key" env:"S3_ACCESS_KEY" flag:"s3-access-key"`
+	SecretKey     string `json:"secret_key" env:"S3_SECRET_KEY" flag:"s3-secret-key"`
+	Bucket        string `json:"bucket" env:"S3_BUCKET" flag:"s3-bucket"`
+	WebhookSecret string `json:"webhook_secret" env:"MINIO_WEBHOOK_SECRET" flag:"minio-webhook-secret"`
 }
 
 func LoadApplicationConfiguration() (AppConfig, error) {

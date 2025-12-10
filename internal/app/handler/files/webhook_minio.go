@@ -132,7 +132,11 @@ func (h *WebhookHandler) Handle(w http.ResponseWriter, r *http.Request) {
 		if mime != "" {
 			m["mime"] = mime
 		}
-		recdb := model.ItemRecord{ID: fileID, UserID: userID, Title: filename, Type: "BINARY", DataEncrypted: dataEncrypted, DataNonce: dataNonce, DataKeyEncrypted: keyEncrypted, DataKeyNonce: keyNonce, KEKVersion: kekVersion, Meta: m}
+		title := filename
+		if strings.TrimSpace(title) == "" {
+			title = fileID.String()
+		}
+		recdb := model.ItemRecord{ID: fileID, UserID: userID, Title: title, Type: "BINARY", DataEncrypted: dataEncrypted, DataNonce: dataNonce, DataKeyEncrypted: keyEncrypted, DataKeyNonce: keyNonce, KEKVersion: kekVersion, Meta: m}
 		_, err = h.items.Create(r.Context(), recdb)
 		if err != nil {
 			_ = h.s3client.RemoveObject(r.Context(), key)

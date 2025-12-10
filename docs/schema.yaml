@@ -294,7 +294,7 @@ paths:
           application/json:
             schema:
               type: object
-              required: [fileId, filename, mime, size]
+              required: [fileId]
               properties:
                 fileId:
                   type: string
@@ -306,10 +306,6 @@ paths:
                 mime:
                   type: string
                   description: MIME-тип файла
-                size:
-                  type: integer
-                  minimum: 0
-                  description: Размер файла в байтах
                 checksum:
                   type: string
                   description: Контрольная сумма (sha256 hex)
@@ -323,7 +319,7 @@ paths:
                 properties:
                   upload_url:
                     type: string
-                    description: URL формы загрузки (MinIO)
+                    description: URL формы загрузки (MinIO), куда клиент отправляет форму Presigned POST напрямую через nginx
                   key:
                     type: string
                     description: Ключ объекта (совпадает с fileId)

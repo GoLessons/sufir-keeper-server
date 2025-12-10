@@ -23,7 +23,6 @@ type presignRequest struct {
 	Filename string    `json:"filename"`
 	Mime     string    `json:"mime"`
 	Checksum string    `json:"checksum"`
-	Size     int64     `json:"size"`
 	FileID   uuid.UUID `json:"fileId"`
 }
 
@@ -44,25 +43,30 @@ func (h *PresignHandler) Handle(w http.ResponseWriter, r *http.Request) {
 		httputil.WriteError(w, http.StatusBadRequest, "bad_request", "Invalid JSON")
 		return
 	}
-	if req.FileID == uuid.Nil || strings.TrimSpace(req.Filename) == "" || strings.TrimSpace(req.Mime) == "" || req.Size <= 0 {
+	if req.FileID == uuid.Nil {
 		httputil.WriteError(w, http.StatusBadRequest, "bad_request", "Missing required fields")
 		return
 	}
 	meta := map[string]string{
-		"x-amz-meta-user-id":  userID.String(),
-		"x-amz-meta-file-id":  req.FileID.String(),
-		"x-amz-meta-filename": strings.TrimSpace(req.Filename),
-		"x-amz-meta-mime":     strings.TrimSpace(req.Mime),
+		"x-amz-meta-user-id": userID.String(),
+		"x-amz-meta-file-id": req.FileID.String(),
+	}
+	if s := strings.TrimSpace(req.Filename); s != "" {
+		meta["x-amz-meta-filename"] = s
+	}
+	if s := strings.TrimSpace(req.Mime); s != "" {
+		meta["x-amz-meta-mime"] = s
 	}
 	if s := strings.TrimSpace(req.Checksum); s != "" {
 		meta["x-amz-meta-checksum"] = s
 	}
-	_, fields, err := h.s3.PresignPost(r.Context(), req.FileID.String(), req.Mime, req.Size, meta, time.Hour)
+	uploadURL, fields, err := h.s3.PresignPost(r.Context(), req.FileID.String(), req.Mime, 0, meta, time.Hour)
 	if err != nil {
 		httputil.WriteError(w, http.StatusInternalServerError, "server_error", "Presign error")
 		return
 	}
 	fields["success_action_status"] = "204"
+	_ = uploadURL
 	resp := presignResponse{UploadURL: "/api/v1/files", Key: req.FileID.String(), FormFields: fields}
 	httputil.WriteJSON(w, http.StatusOK, resp)
 }

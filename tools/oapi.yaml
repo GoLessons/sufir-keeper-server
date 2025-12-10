@@ -3,3 +3,5 @@ package: apitypes
 generate:
   models: true
 output: ../../internal/api/types/generated_types.go
+output-options:
+  skip-prune: true

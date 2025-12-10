@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"os"
 	"strings"
 	"time"
 
@@ -131,7 +130,12 @@ func createServerImplementation(container *ApplicationContainer, tokenAuth *jwta
 			s3Client = client
 			_ = client.EnsureBucket(context.Background())
 			_ = client.SetBucketWebhookCreatedEvents(context.Background())
-			wh := fileshandler.NewWebhookHandler(repository.NewItemRepository(container.databaseClient), client, provider, strings.TrimSpace(os.Getenv("MINIO_WEBHOOK_SECRET")))
+			wh := fileshandler.NewWebhookHandler(
+				repository.NewItemRepository(container.databaseClient),
+				client,
+				provider,
+				strings.TrimSpace(container.configuration.S3.WebhookSecret),
+			)
 			container.router.Post("/files/webhook-minio", wh.Handle)
 		}
 	}

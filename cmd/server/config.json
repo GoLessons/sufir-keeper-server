@@ -15,9 +15,27 @@
     "idle_timeout_seconds": 120,
     "max_body_bytes": 10485760
   },
+  "log": {
+    "level_success": "info",
+    "level_client_error": "warn",
+    "level_server_error": "error"
+  },
   "auth": {
     "jwt_secret": "dev-secret-change-in-prod",
     "access_token_ttl_seconds": 3600,
     "refresh_token_ttl_seconds": 2592000
+  },
+  "crypto": {
+    "master_key_hex": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+    "vault_addr": "http://vault:8200",
+    "vault_token": "dev-root-token",
+    "vault_kv_path": "keeper/keyencrypt"
+  },
+  "s3": {
+    "endpoint": "http://minio:9000",
+    "access_key": "minioadmin",
+    "secret_key": "minioadmin",
+    "bucket": "keeper",
+    "webhook_secret": "dev-webhook-secret"
   }
 }
