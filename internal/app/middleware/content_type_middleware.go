@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"encoding/json"
+	"mime"
 	"net/http"
 	"strings"
 
@@ -9,23 +10,33 @@ import (
 	model "github.com/GoLessons/sufir-keeper-server/internal/api/types"
 )
 
-func ContentTypeValidationMiddleware() api.MiddlewareFunc {
+func RequireJSONMiddleware() api.MiddlewareFunc {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			method := strings.ToUpper(r.Method)
-			if method == http.MethodPost || method == http.MethodPut || method == http.MethodPatch {
-				ct := strings.ToLower(strings.TrimSpace(r.Header.Get("Content-Type")))
-				p := strings.ToLower(strings.TrimSpace(r.URL.Path))
-				if strings.HasPrefix(p, "/files") {
-					if ct == "" || !strings.HasPrefix(ct, "multipart/form-data") {
-						writeUnsupportedMediaType(w, "multipart/form-data")
-						return
-					}
-				} else {
-					if ct == "" || !strings.Contains(ct, "application/json") {
-						writeUnsupportedMediaType(w, "application/json")
-						return
-					}
+			m := strings.ToUpper(r.Method)
+			if m == http.MethodPost || m == http.MethodPut || m == http.MethodPatch {
+				ct := strings.TrimSpace(r.Header.Get("Content-Type"))
+				mt, _, err := mime.ParseMediaType(ct)
+				if err != nil || mt != "application/json" {
+					writeUnsupportedMediaType(w, "application/json")
+					return
+				}
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+func RequireMultipartFormDataMiddleware() api.MiddlewareFunc {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			m := strings.ToUpper(r.Method)
+			if m == http.MethodPost || m == http.MethodPut || m == http.MethodPatch {
+				ct := strings.TrimSpace(r.Header.Get("Content-Type"))
+				mt, _, err := mime.ParseMediaType(ct)
+				if err != nil || mt != "multipart/form-data" {
+					writeUnsupportedMediaType(w, "multipart/form-data")
+					return
 				}
 			}
 			next.ServeHTTP(w, r)

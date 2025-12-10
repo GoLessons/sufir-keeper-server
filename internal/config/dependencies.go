@@ -79,7 +79,8 @@ func createChiServerOptions(router *chi.Mux, logger *zap.Logger, configuration A
 		middleware.LoggingMiddleware(logger, middleware.HTTPLogLevels{Success: strings.TrimSpace(configuration.Log.LevelSuccess), ClientError: strings.TrimSpace(configuration.Log.LevelClientError), ServerError: strings.TrimSpace(configuration.Log.LevelServerError)}),
 	}
 	protected := middleware.AuthRequiredMiddleware(tokenAuth)
-	jsonOnly := middleware.ContentTypeValidationMiddleware()
+	jsonOnly := middleware.RequireJSONMiddleware()
+	multipartOnly := middleware.RequireMultipartFormDataMiddleware()
 	middlewares := map[string][]api.MiddlewareFunc{
 		"common":              common,
 		"DELETE /auth":        {protected},
@@ -91,7 +92,7 @@ func createChiServerOptions(router *chi.Mux, logger *zap.Logger, configuration A
 		"GET /items":          {protected, jsonOnly},
 		"GET /items/{id}":     {protected, jsonOnly},
 		"DELETE /items/{id}":  {protected},
-		"POST /files":         {}, // загрузка файлов происходит напрямую в MinIO через nginx, этот эндпоинт приложения не должен вызываться
+		"POST /files":         {multipartOnly},
 		"POST /files/presign": {protected, jsonOnly},
 		"GET /files/{fileId}": {protected},
 		"GET /auth-verify":    {protected},

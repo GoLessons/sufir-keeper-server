@@ -9,12 +9,12 @@ import (
 	apitypes "github.com/GoLessons/sufir-keeper-server/internal/api/types"
 )
 
-func TestContentTypeValidationMiddleware_JSONRequired(t *testing.T) {
+func TestRequireJSONMiddleware(t *testing.T) {
 	h := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("ok"))
 	})
-	final := ContentTypeValidationMiddleware()(h)
+	final := RequireJSONMiddleware()(h)
 
 	req := httptest.NewRequest(http.MethodPost, "/items", nil)
 	req.Header.Set("Content-Type", "text/plain")
@@ -31,12 +31,12 @@ func TestContentTypeValidationMiddleware_JSONRequired(t *testing.T) {
 	}
 }
 
-func TestContentTypeValidationMiddleware_FilesMultipartRequired(t *testing.T) {
+func TestRequireMultipartFormDataMiddleware(t *testing.T) {
 	h := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("ok"))
 	})
-	final := ContentTypeValidationMiddleware()(h)
+	final := RequireMultipartFormDataMiddleware()(h)
 
 	req := httptest.NewRequest(http.MethodPost, "/files/upload", nil)
 	req.Header.Set("Content-Type", "application/json")
@@ -53,25 +53,26 @@ func TestContentTypeValidationMiddleware_FilesMultipartRequired(t *testing.T) {
 	}
 }
 
-func TestContentTypeValidationMiddleware_PassesValidTypes(t *testing.T) {
+func TestMiddlewares_PassesValidTypes(t *testing.T) {
 	h := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("ok"))
 	})
-	final := ContentTypeValidationMiddleware()(h)
 
+	finalJSON := RequireJSONMiddleware()(h)
 	req1 := httptest.NewRequest(http.MethodPost, "/items", nil)
 	req1.Header.Set("Content-Type", "application/json")
 	rr1 := httptest.NewRecorder()
-	final.ServeHTTP(rr1, req1)
+	finalJSON.ServeHTTP(rr1, req1)
 	if rr1.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d", rr1.Code)
 	}
 
+	finalMultipart := RequireMultipartFormDataMiddleware()(h)
 	req2 := httptest.NewRequest(http.MethodPost, "/files/upload", nil)
 	req2.Header.Set("Content-Type", "multipart/form-data; boundary=abc")
 	rr2 := httptest.NewRecorder()
-	final.ServeHTTP(rr2, req2)
+	finalMultipart.ServeHTTP(rr2, req2)
 	if rr2.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d", rr2.Code)
 	}
