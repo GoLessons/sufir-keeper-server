@@ -121,6 +121,10 @@ func createServerImplementation(container *ApplicationContainer, tokenAuth *jwta
 	}
 	if provider == nil {
 		provider = &keyencrypt.StaticProvider{Key: make([]byte, 32), Version: 1}
+	} else {
+		if _, _, err := provider.GetCurrent(context.Background()); err != nil {
+			provider = &keyencrypt.StaticProvider{Key: make([]byte, 32), Version: 1}
+		}
 	}
 	deps.KEKProvider = provider
 
@@ -140,28 +144,11 @@ func createServerImplementation(container *ApplicationContainer, tokenAuth *jwta
 			container.router.Post("/files/webhook-minio", wh.Handle)
 		}
 	}
-	authVerify(container.router)
 	server := api.NewServer(deps)
 	if s3Client != nil {
 		server.SetPresignHandler(fileshandler.NewPresignHandler(s3Client))
 	}
 	return server
-}
-
-func authVerify(router *chi.Mux) {
-	verify := func(w http.ResponseWriter, r *http.Request) {
-		userID, exists := fileshandler.UserIDFromRequest(r)
-		if !exists {
-			w.WriteHeader(http.StatusUnauthorized)
-			return
-		}
-
-		w.Header().Set("X-User-Id", userID.String())
-		w.WriteHeader(http.StatusNoContent)
-	}
-
-	router.Post("/auth-verify", http.HandlerFunc(verify))
-	router.Get("/auth-verify", http.HandlerFunc(verify))
 }
 
 func createJWTAuth(configuration AppConfig) (*jwtauth.JWTAuth, error) {

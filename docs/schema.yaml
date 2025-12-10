@@ -363,6 +363,42 @@ paths:
         '404':
           description: Файл не найден
 
+  /auth-verify:
+    get:
+      tags: [Auth]
+      summary: Проверка авторизации и получение идентификатора пользователя
+      operationId: authVerifyGet
+      security:
+        - bearerAuth: []
+      responses:
+        '204':
+          description: Авторизован
+          headers:
+            X-User-Id:
+              description: ID пользователя
+              schema:
+                type: string
+                format: uuid
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+    post:
+      tags: [Auth]
+      summary: Проверка авторизации и получение идентификатора пользователя
+      operationId: authVerifyPost
+      security:
+        - bearerAuth: []
+      responses:
+        '204':
+          description: Авторизован
+          headers:
+            X-User-Id:
+              description: ID пользователя
+              schema:
+                type: string
+                format: uuid
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
 components:
   securitySchemes:
     bearerAuth:

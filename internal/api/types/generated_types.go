@@ -217,13 +217,10 @@ type PresignFileJSONBody struct {
 	FileId openapi_types.UUID `json:"fileId"`
 
 	// Filename Имя файла
-	Filename string `json:"filename"`
+	Filename *string `json:"filename,omitempty"`
 
 	// Mime MIME-тип файла
-	Mime string `json:"mime"`
-
-	// Size Размер файла в байтах
-	Size int `json:"size"`
+	Mime *string `json:"mime,omitempty"`
 }
 
 // GetItemsParams defines parameters for GetItems.

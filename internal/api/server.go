@@ -42,6 +42,7 @@ type Server struct {
 	itemsDelete   *itemshandler.DeleteHandler
 	filesDownload *fileshandler.DownloadHandler
 	filesPresign  *fileshandler.PresignHandler
+	verify        *authhandler.VerifyHandler
 }
 
 func NewServer(deps ServerDependencies) *Server {
@@ -65,6 +66,7 @@ func NewServer(deps ServerDependencies) *Server {
 		itemsDelete:   itemshandler.NewDeleteHandler(items, kekProvider, deps.TokenAuth),
 		filesDownload: fileshandler.NewDownloadHandler(items, kekProvider),
 		filesPresign:  nil,
+		verify:        authhandler.NewVerifyHandler(),
 		kek:           kekProvider,
 	}
 }
@@ -73,10 +75,12 @@ func (s *Server) SetPresignHandler(h *fileshandler.PresignHandler) {
 	s.filesPresign = h
 }
 
-func (s *Server) LogoutUser(w http.ResponseWriter, r *http.Request)   { s.logout.Handle(w, r) }
-func (s *Server) RefreshToken(w http.ResponseWriter, r *http.Request) { s.refresh.Handle(w, r) }
-func (s *Server) LoginUser(w http.ResponseWriter, r *http.Request)    { s.login.Handle(w, r) }
-func (s *Server) RegisterUser(w http.ResponseWriter, r *http.Request) { s.register.Handle(w, r) }
+func (s *Server) LogoutUser(w http.ResponseWriter, r *http.Request)     { s.logout.Handle(w, r) }
+func (s *Server) RefreshToken(w http.ResponseWriter, r *http.Request)   { s.refresh.Handle(w, r) }
+func (s *Server) LoginUser(w http.ResponseWriter, r *http.Request)      { s.login.Handle(w, r) }
+func (s *Server) RegisterUser(w http.ResponseWriter, r *http.Request)   { s.register.Handle(w, r) }
+func (s *Server) AuthVerifyGet(w http.ResponseWriter, r *http.Request)  { s.verify.Handle(w, r) }
+func (s *Server) AuthVerifyPost(w http.ResponseWriter, r *http.Request) { s.verify.Handle(w, r) }
 
 func (s *Server) CreateItem(w http.ResponseWriter, r *http.Request) { s.itemsCreate.Handle(w, r) }
 func (s *Server) GetItems(w http.ResponseWriter, r *http.Request, params GetItemsParams) {
