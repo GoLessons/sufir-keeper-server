@@ -82,19 +82,20 @@ func createChiServerOptions(router *chi.Mux, logger *zap.Logger, configuration A
 	protected := middleware.AuthRequiredMiddleware(tokenAuth)
 	jsonOnly := middleware.ContentTypeValidationMiddleware()
 	middlewares := map[string][]api.MiddlewareFunc{
-		"common":             common,
-		"DELETE /auth":       {protected},
-		"POST /auth":         {jsonOnly},
-		"PATCH /auth":        {jsonOnly},
-		"POST /register":     {jsonOnly},
-		"POST /items":        {protected, jsonOnly},
-		"PUT /items/{id}":    {protected, jsonOnly},
-		"GET /items":         {protected, jsonOnly},
-		"GET /items/{id}":    {protected, jsonOnly},
-		"DELETE /items/{id}": {protected},
-		// загрузка файлов происходит напрямую в MinIO через nginx, этот эндпоинт приложения не должен вызываться
-		"POST /files":         {},
+		"common":              common,
+		"DELETE /auth":        {protected},
+		"POST /auth":          {jsonOnly},
+		"PATCH /auth":         {jsonOnly},
+		"POST /register":      {jsonOnly},
+		"POST /items":         {protected, jsonOnly},
+		"PUT /items/{id}":     {protected, jsonOnly},
+		"GET /items":          {protected, jsonOnly},
+		"GET /items/{id}":     {protected, jsonOnly},
+		"DELETE /items/{id}":  {protected},
+		"POST /files":         {}, // загрузка файлов происходит напрямую в MinIO через nginx, этот эндпоинт приложения не должен вызываться
 		"GET /files/{fileId}": {protected},
+		"GET /auth-verify":    {protected},
+		"POST /auth-verify":   {protected},
 	}
 	return api.ChiServerOptions{BaseURL: "", BaseRouter: router, Middlewares: middlewares, ErrorHandlerFunc: api.DefaultErrorHandler}
 }
@@ -131,42 +132,20 @@ func createServerImplementation(container *ApplicationContainer, tokenAuth *jwta
 			container.router.Post("/files/webhook-minio", wh.Handle)
 		}
 	}
-	authVerify(container.router, tokenAuth)
+	authVerify(container.router)
 	server := api.NewServer(deps)
 	return server
 }
 
-func authVerify(router *chi.Mux, tokenAuth *jwtauth.JWTAuth) {
+func authVerify(router *chi.Mux) {
 	verify := func(w http.ResponseWriter, r *http.Request) {
-		auth := strings.TrimSpace(r.Header.Get("Authorization"))
-		if auth == "" {
+		userId, exists := fileshandler.UserIDFromRequest(r)
+		if !exists {
 			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}
-		parts := strings.SplitN(auth, " ", 2)
-		if len(parts) != 2 || strings.ToLower(strings.TrimSpace(parts[0])) != "bearer" {
-			w.WriteHeader(http.StatusUnauthorized)
-			return
-		}
-		tokenStr := strings.TrimSpace(parts[1])
-		token, err := jwtauth.VerifyToken(tokenAuth, tokenStr)
-		if err != nil || token == nil {
-			w.WriteHeader(http.StatusUnauthorized)
-			return
-		}
-		typVal, _ := token.Get("typ")
-		t, _ := typVal.(string)
-		if strings.ToLower(strings.TrimSpace(t)) != "access" {
-			w.WriteHeader(http.StatusUnauthorized)
-			return
-		}
-		subVal, _ := token.Get("sub")
-		sub, _ := subVal.(string)
-		if strings.TrimSpace(sub) == "" {
-			w.WriteHeader(http.StatusUnauthorized)
-			return
-		}
-		w.Header().Set("X-User-Id", strings.TrimSpace(sub))
+
+		w.Header().Set("X-User-Id", userId.String())
 		w.WriteHeader(http.StatusNoContent)
 	}
 

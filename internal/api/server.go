@@ -41,7 +41,6 @@ type Server struct {
 	itemsUpdate   *itemshandler.UpdateHandler
 	itemsDelete   *itemshandler.DeleteHandler
 	filesDownload *fileshandler.DownloadHandler
-	deps          ServerDependencies
 }
 
 func NewServer(deps ServerDependencies) *Server {
@@ -51,8 +50,8 @@ func NewServer(deps ServerDependencies) *Server {
 	if p, ok := deps.KEKProvider.(keyencrypt.Provider); ok {
 		kekProvider = p
 	}
+
 	return &Server{
-		deps:          deps,
 		users:         users,
 		items:         items,
 		login:         authhandler.NewLoginHandler(users, deps.TokenAuth, deps.AccessTokenTTLSeconds, deps.RefreshTokenTTLSeconds),
