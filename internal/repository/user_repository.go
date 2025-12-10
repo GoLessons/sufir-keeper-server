@@ -92,6 +92,22 @@ func (r *UserRepository) GetRefreshVersion(ctx context.Context, userID uuid.UUID
 	return version, nil
 }
 
+func (r *UserRepository) EnsureRefreshVersion(ctx context.Context, userID uuid.UUID) (int, error) {
+	insert := r.client.Builder.
+		Insert("keep.refresh_versions").
+		Columns("user_id", "version", "updated_at").
+		Values(userID, 1, sq.Expr("now()")).
+		Suffix("ON CONFLICT (user_id) DO NOTHING")
+	sqlStr, args, err := insert.ToSql()
+	if err != nil {
+		return 0, err
+	}
+	if _, err := r.client.SQL.ExecContext(ctx, sqlStr, args...); err != nil {
+		return 0, err
+	}
+	return r.GetRefreshVersion(ctx, userID)
+}
+
 func (r *UserRepository) IncrementRefreshVersion(ctx context.Context, userID uuid.UUID) (int, error) {
 	update := r.client.Builder.Update("keep.refresh_versions").Set("version", sq.Expr("version + 1")).Set("updated_at", sq.Expr("now()"))
 	update = update.Where(sq.Eq{"user_id": userID})

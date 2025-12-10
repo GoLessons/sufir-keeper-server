@@ -91,8 +91,8 @@ func (s *Server) DeleteItem(w http.ResponseWriter, r *http.Request, id apiTypes.
 	s.itemsDelete.Handle(w, r, uuid.UUID(id))
 }
 
-func (s *Server) UploadFile(w http.ResponseWriter, _ *http.Request, _ UploadFileParams) {
-	w.WriteHeader(http.StatusNoContent)
+func (s *Server) UploadFile(w http.ResponseWriter, r *http.Request, params UploadFileParams) {
+	http.Error(w, "not implemented", http.StatusNotImplemented)
 }
 
 func (s *Server) DownloadFile(w http.ResponseWriter, r *http.Request, fileID apiTypes.UUID) {

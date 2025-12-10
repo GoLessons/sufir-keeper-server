@@ -92,6 +92,9 @@ func createChiServerOptions(router *chi.Mux, logger *zap.Logger, configuration A
 		"GET /items":         {protected, jsonOnly},
 		"GET /items/{id}":    {protected, jsonOnly},
 		"DELETE /items/{id}": {protected},
+		// загрузка файлов происходит напрямую в MinIO через nginx, этот эндпоинт приложения не должен вызываться
+		"POST /files":         {},
+		"GET /files/{fileId}": {protected},
 	}
 	return api.ChiServerOptions{BaseURL: "", BaseRouter: router, Middlewares: middlewares, ErrorHandlerFunc: api.DefaultErrorHandler}
 }
@@ -121,31 +124,44 @@ func createServerImplementation(container *ApplicationContainer, tokenAuth *jwta
 
 	s3Cfg := container.configuration.S3
 	if strings.TrimSpace(s3Cfg.Endpoint) != "" && strings.TrimSpace(s3Cfg.AccessKey) != "" && strings.TrimSpace(s3Cfg.SecretKey) != "" && strings.TrimSpace(s3Cfg.Bucket) != "" {
-        if client, err := s3.NewClient(strings.TrimSpace(s3Cfg.Endpoint), strings.TrimSpace(s3Cfg.AccessKey), strings.TrimSpace(s3Cfg.SecretKey), strings.TrimSpace(s3Cfg.Bucket)); err == nil {
-            _ = client.EnsureBucket(context.Background())
-            _ = client.SetBucketWebhookCreatedEvents(context.Background())
-            wh := fileshandler.NewWebhookHandler(repository.NewItemRepository(container.databaseClient), client, provider, strings.TrimSpace(os.Getenv("MINIO_WEBHOOK_SECRET")))
-            container.router.Post("/files/webhook-minio", wh.Handle)
-        }
+		if client, err := s3.NewClient(strings.TrimSpace(s3Cfg.Endpoint), strings.TrimSpace(s3Cfg.AccessKey), strings.TrimSpace(s3Cfg.SecretKey), strings.TrimSpace(s3Cfg.Bucket)); err == nil {
+			_ = client.EnsureBucket(context.Background())
+			_ = client.SetBucketWebhookCreatedEvents(context.Background())
+			wh := fileshandler.NewWebhookHandler(repository.NewItemRepository(container.databaseClient), client, provider, strings.TrimSpace(os.Getenv("MINIO_WEBHOOK_SECRET")))
+			container.router.Post("/files/webhook-minio", wh.Handle)
+		}
 	}
-	authVerify(container.router)
+	authVerify(container.router, tokenAuth)
 	server := api.NewServer(deps)
 	return server
 }
 
-func authVerify(router *chi.Mux) {
+func authVerify(router *chi.Mux, tokenAuth *jwtauth.JWTAuth) {
 	verify := func(w http.ResponseWriter, r *http.Request) {
-		_, claims, err := jwtauth.FromContext(r.Context())
-		if err != nil || claims == nil {
+		auth := strings.TrimSpace(r.Header.Get("Authorization"))
+		if auth == "" {
 			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}
-		t, _ := claims["typ"].(string)
+		parts := strings.SplitN(auth, " ", 2)
+		if len(parts) != 2 || strings.ToLower(strings.TrimSpace(parts[0])) != "bearer" {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		tokenStr := strings.TrimSpace(parts[1])
+		token, err := jwtauth.VerifyToken(tokenAuth, tokenStr)
+		if err != nil || token == nil {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		typVal, _ := token.Get("typ")
+		t, _ := typVal.(string)
 		if strings.ToLower(strings.TrimSpace(t)) != "access" {
 			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}
-		sub, _ := claims["sub"].(string)
+		subVal, _ := token.Get("sub")
+		sub, _ := subVal.(string)
 		if strings.TrimSpace(sub) == "" {
 			w.WriteHeader(http.StatusUnauthorized)
 			return
@@ -154,8 +170,8 @@ func authVerify(router *chi.Mux) {
 		w.WriteHeader(http.StatusNoContent)
 	}
 
-	router.Post("/auth-verify", verify)
-	router.Get("/auth-verify", verify)
+	router.Post("/auth-verify", http.HandlerFunc(verify))
+	router.Get("/auth-verify", http.HandlerFunc(verify))
 }
 
 func createJWTAuth(configuration AppConfig) (*jwtauth.JWTAuth, error) {
