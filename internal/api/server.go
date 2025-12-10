@@ -41,6 +41,7 @@ type Server struct {
 	itemsUpdate   *itemshandler.UpdateHandler
 	itemsDelete   *itemshandler.DeleteHandler
 	filesDownload *fileshandler.DownloadHandler
+	filesPresign  *fileshandler.PresignHandler
 }
 
 func NewServer(deps ServerDependencies) *Server {
@@ -50,7 +51,6 @@ func NewServer(deps ServerDependencies) *Server {
 	if p, ok := deps.KEKProvider.(keyencrypt.Provider); ok {
 		kekProvider = p
 	}
-
 	return &Server{
 		users:         users,
 		items:         items,
@@ -64,8 +64,13 @@ func NewServer(deps ServerDependencies) *Server {
 		itemsUpdate:   itemshandler.NewUpdateHandler(items, kekProvider, deps.TokenAuth),
 		itemsDelete:   itemshandler.NewDeleteHandler(items, kekProvider, deps.TokenAuth),
 		filesDownload: fileshandler.NewDownloadHandler(items, kekProvider),
+		filesPresign:  nil,
 		kek:           kekProvider,
 	}
+}
+
+func (s *Server) SetPresignHandler(h *fileshandler.PresignHandler) {
+	s.filesPresign = h
 }
 
 func (s *Server) LogoutUser(w http.ResponseWriter, r *http.Request)   { s.logout.Handle(w, r) }
@@ -90,8 +95,16 @@ func (s *Server) DeleteItem(w http.ResponseWriter, r *http.Request, id apiTypes.
 	s.itemsDelete.Handle(w, r, uuid.UUID(id))
 }
 
-func (s *Server) UploadFile(w http.ResponseWriter, r *http.Request, params UploadFileParams) {
+func (s *Server) UploadFile(w http.ResponseWriter, _ *http.Request, _ UploadFileParams) {
 	http.Error(w, "not implemented", http.StatusNotImplemented)
+}
+
+func (s *Server) PresignFile(w http.ResponseWriter, r *http.Request) {
+	if s.filesPresign == nil {
+		http.Error(w, "presign not available", http.StatusServiceUnavailable)
+		return
+	}
+	s.filesPresign.Handle(w, r)
 }
 
 func (s *Server) DownloadFile(w http.ResponseWriter, r *http.Request, fileID apiTypes.UUID) {

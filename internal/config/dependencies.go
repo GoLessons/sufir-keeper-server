@@ -93,6 +93,7 @@ func createChiServerOptions(router *chi.Mux, logger *zap.Logger, configuration A
 		"GET /items/{id}":     {protected, jsonOnly},
 		"DELETE /items/{id}":  {protected},
 		"POST /files":         {}, // загрузка файлов происходит напрямую в MinIO через nginx, этот эндпоинт приложения не должен вызываться
+		"POST /files/presign": {protected, jsonOnly},
 		"GET /files/{fileId}": {protected},
 		"GET /auth-verify":    {protected},
 		"POST /auth-verify":   {protected},
@@ -124,8 +125,10 @@ func createServerImplementation(container *ApplicationContainer, tokenAuth *jwta
 	deps.KEKProvider = provider
 
 	s3Cfg := container.configuration.S3
+	var s3Client *s3.Client
 	if strings.TrimSpace(s3Cfg.Endpoint) != "" && strings.TrimSpace(s3Cfg.AccessKey) != "" && strings.TrimSpace(s3Cfg.SecretKey) != "" && strings.TrimSpace(s3Cfg.Bucket) != "" {
 		if client, err := s3.NewClient(strings.TrimSpace(s3Cfg.Endpoint), strings.TrimSpace(s3Cfg.AccessKey), strings.TrimSpace(s3Cfg.SecretKey), strings.TrimSpace(s3Cfg.Bucket)); err == nil {
+			s3Client = client
 			_ = client.EnsureBucket(context.Background())
 			_ = client.SetBucketWebhookCreatedEvents(context.Background())
 			wh := fileshandler.NewWebhookHandler(repository.NewItemRepository(container.databaseClient), client, provider, strings.TrimSpace(os.Getenv("MINIO_WEBHOOK_SECRET")))
@@ -134,18 +137,21 @@ func createServerImplementation(container *ApplicationContainer, tokenAuth *jwta
 	}
 	authVerify(container.router)
 	server := api.NewServer(deps)
+	if s3Client != nil {
+		server.SetPresignHandler(fileshandler.NewPresignHandler(s3Client))
+	}
 	return server
 }
 
 func authVerify(router *chi.Mux) {
 	verify := func(w http.ResponseWriter, r *http.Request) {
-		userId, exists := fileshandler.UserIDFromRequest(r)
+		userID, exists := fileshandler.UserIDFromRequest(r)
 		if !exists {
 			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}
 
-		w.Header().Set("X-User-Id", userId.String())
+		w.Header().Set("X-User-Id", userID.String())
 		w.WriteHeader(http.StatusNoContent)
 	}
 

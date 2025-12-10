@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
@@ -77,13 +78,51 @@ func (c *Client) PutObject(ctx context.Context, key string, reader io.Reader, si
 }
 
 func (c *Client) SetBucketWebhookCreatedEvents(ctx context.Context) error {
-	cfg := notification.Configuration{
-		QueueConfigs: []notification.QueueConfig{
-			{
-				Arn:    "arn:minio:sqs::1:webhook",
-				Events: []string{"s3:ObjectCreated:Put", "s3:ObjectCreated:Post", "s3:ObjectCreated:Copy", "s3:ObjectCreated:CompleteMultipartUpload"},
-			},
-		},
-	}
+	arn := notification.NewArn("minio", "sqs", "", "1", "webhook")
+	qcfg := notification.NewConfig(arn)
+	qcfg.AddEvents(
+		notification.EventType("s3:ObjectCreated:Put"),
+		notification.EventType("s3:ObjectCreated:Post"),
+		notification.EventType("s3:ObjectCreated:Copy"),
+		notification.EventType("s3:ObjectCreated:CompleteMultipartUpload"),
+	)
+	cfg := notification.Configuration{}
+	cfg.AddQueue(qcfg)
 	return c.minio.SetBucketNotification(ctx, c.bucket, cfg)
+}
+
+func (c *Client) PresignPost(ctx context.Context, key string, contentType string, size int64, metadata map[string]string, expires time.Duration) (string, map[string]string, error) {
+	pol := minio.NewPostPolicy()
+	if err := pol.SetBucket(c.bucket); err != nil {
+		return "", nil, err
+	}
+	if err := pol.SetKey(strings.TrimSpace(key)); err != nil {
+		return "", nil, err
+	}
+	if err := pol.SetExpires(time.Now().UTC().Add(expires)); err != nil {
+		return "", nil, err
+	}
+	ct := strings.TrimSpace(contentType)
+	if ct != "" {
+		if err := pol.SetContentType(ct); err != nil {
+			return "", nil, err
+		}
+	}
+	if size > 0 {
+		if err := pol.SetContentLengthRange(1, size); err != nil {
+			return "", nil, err
+		}
+	}
+	if len(metadata) > 0 {
+		for k, v := range metadata {
+			if err := pol.SetUserMetadata(strings.TrimSpace(k), strings.TrimSpace(v)); err != nil {
+				return "", nil, err
+			}
+		}
+	}
+	url, formData, err := c.minio.PresignedPostPolicy(ctx, pol)
+	if err != nil {
+		return "", nil, err
+	}
+	return url.String(), formData, nil
 }
