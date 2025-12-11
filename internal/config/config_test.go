@@ -10,7 +10,7 @@ import (
 func TestLoadApplicationConfigurationJsonOnly(t *testing.T) {
 	dir := t.TempDir()
 	jsonPath := filepath.Join(dir, "config.json")
-	content := []byte(`{"db":{"dsn":"postgres://u:p@h:5432/db?sslmode=disable"}}`)
+	content := []byte(`{"db":{"dsn":"postgres://u:p@h:5432/db?sslmode=disable"},"s3":{"bucket":"mybucket"}}`)
 	if err := os.WriteFile(jsonPath, content, 0o644); err != nil {
 		t.Fatalf("failed to write json: %v", err)
 	}
@@ -40,7 +40,10 @@ func TestValidateApplicationConfiguration(t *testing.T) {
 		{name: "missing-db", dsn: "postgres://h", expect: errors.New("")},
 	}
 	for _, c := range cases {
-		err := validateApplicationConfiguration(AppConfig{DB: DatabaseConfig{DataSourceName: c.dsn}})
+		err := validateApplicationConfiguration(AppConfig{
+			DB: DatabaseConfig{DataSourceName: c.dsn},
+			S3: S3Config{Bucket: "mybucket"},
+		})
 		if c.expect == nil && err != nil {
 			t.Fatalf("%s: unexpected error: %v", c.name, err)
 		}

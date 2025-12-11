@@ -43,13 +43,16 @@ func NewClient(endpoint, accessKey, secretKey, bucket string) (*Client, error) {
 	return &Client{endpoint: ep, accessKey: ak, secretKey: sk, bucket: b, minio: cli}, nil
 }
 
-func (c *Client) EnsureBucket(ctx context.Context) error {
-	exists, err := c.minio.BucketExists(ctx, c.bucket)
+func (c *Client) EnsureBucket(ctx context.Context, bucketName string) error {
+	if bucketName == "" {
+		bucketName = c.bucket
+	}
+	exists, err := c.minio.BucketExists(ctx, bucketName)
 	if err != nil {
 		return err
 	}
 	if !exists {
-		if err := c.minio.MakeBucket(ctx, c.bucket, minio.MakeBucketOptions{}); err != nil {
+		if err := c.minio.MakeBucket(ctx, bucketName, minio.MakeBucketOptions{}); err != nil {
 			return err
 		}
 	}
@@ -57,24 +60,36 @@ func (c *Client) EnsureBucket(ctx context.Context) error {
 	return nil
 }
 
-func (c *Client) GetObject(ctx context.Context, key string) (*minio.Object, error) {
-	return c.minio.GetObject(ctx, c.bucket, strings.TrimSpace(key), minio.GetObjectOptions{})
+func (c *Client) GetObject(ctx context.Context, bucketName string, key string) (*minio.Object, error) {
+	if bucketName == "" {
+		bucketName = c.bucket
+	}
+	return c.minio.GetObject(ctx, bucketName, strings.TrimSpace(key), minio.GetObjectOptions{})
 }
 
-func (c *Client) StatObject(ctx context.Context, key string) (minio.ObjectInfo, error) {
-	return c.minio.StatObject(ctx, c.bucket, strings.TrimSpace(key), minio.StatObjectOptions{})
+func (c *Client) StatObject(ctx context.Context, bucketName string, key string) (minio.ObjectInfo, error) {
+	if bucketName == "" {
+		bucketName = c.bucket
+	}
+	return c.minio.StatObject(ctx, bucketName, strings.TrimSpace(key), minio.StatObjectOptions{})
 }
 
-func (c *Client) RemoveObject(ctx context.Context, key string) error {
-	return c.minio.RemoveObject(ctx, c.bucket, strings.TrimSpace(key), minio.RemoveObjectOptions{})
+func (c *Client) RemoveObject(ctx context.Context, bucketName string, key string) error {
+	if bucketName == "" {
+		bucketName = c.bucket
+	}
+	return c.minio.RemoveObject(ctx, bucketName, strings.TrimSpace(key), minio.RemoveObjectOptions{})
 }
 
-func (c *Client) PutObject(ctx context.Context, key string, reader io.Reader, size int64, contentType string, metadata map[string]string) (minio.UploadInfo, error) {
+func (c *Client) PutObject(ctx context.Context, bucketName string, key string, reader io.Reader, size int64, contentType string, metadata map[string]string) (minio.UploadInfo, error) {
+	if bucketName == "" {
+		bucketName = c.bucket
+	}
 	opts := minio.PutObjectOptions{ContentType: strings.TrimSpace(contentType)}
 	if len(metadata) > 0 {
 		opts.UserMetadata = metadata
 	}
-	return c.minio.PutObject(ctx, c.bucket, strings.TrimSpace(key), reader, size, opts)
+	return c.minio.PutObject(ctx, bucketName, strings.TrimSpace(key), reader, size, opts)
 }
 
 func (c *Client) SetBucketWebhookCreatedEvents(ctx context.Context) error {
