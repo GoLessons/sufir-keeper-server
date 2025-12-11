@@ -281,6 +281,58 @@ paths:
         '409':
           description: Файл с таким ID уже существует
 
+  /files/presign:
+    post:
+      tags: [Files]
+      summary: Сгенерировать параметры для прямой загрузки файла в MinIO (Presigned POST)
+      operationId: presignFile
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [fileId]
+              properties:
+                fileId:
+                  type: string
+                  format: uuid
+                  description: ID файла
+                filename:
+                  type: string
+                  description: Имя файла
+                mime:
+                  type: string
+                  description: MIME-тип файла
+                checksum:
+                  type: string
+                  description: Контрольная сумма (sha256 hex)
+      responses:
+        '200':
+          description: Параметры для формы загрузки
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  upload_url:
+                    type: string
+                    description: URL формы загрузки (MinIO), куда клиент отправляет форму Presigned POST напрямую через nginx
+                  key:
+                    type: string
+                    description: Ключ объекта (совпадает с fileId)
+                  form_fields:
+                    type: object
+                    additionalProperties:
+                      type: string
+                    description: Поля формы, включая policy, x-amz-* и метаданные
+        '400':
+          description: Неверные данные запроса
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
   /files/{fileId}:
     get:
       tags: [Files]
@@ -310,6 +362,42 @@ paths:
           description: Нет доступа к файлу
         '404':
           description: Файл не найден
+
+  /auth-verify:
+    get:
+      tags: [Auth]
+      summary: Проверка авторизации и получение идентификатора пользователя
+      operationId: authVerifyGet
+      security:
+        - bearerAuth: []
+      responses:
+        '204':
+          description: Авторизован
+          headers:
+            X-User-Id:
+              description: ID пользователя
+              schema:
+                type: string
+                format: uuid
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+    post:
+      tags: [Auth]
+      summary: Проверка авторизации и получение идентификатора пользователя
+      operationId: authVerifyPost
+      security:
+        - bearerAuth: []
+      responses:
+        '204':
+          description: Авторизован
+          headers:
+            X-User-Id:
+              description: ID пользователя
+              schema:
+                type: string
+                format: uuid
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
 
 components:
   securitySchemes:

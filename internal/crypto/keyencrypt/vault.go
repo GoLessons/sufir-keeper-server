@@ -4,8 +4,10 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
 
 	"github.com/hashicorp/vault/api"
 
@@ -46,7 +48,13 @@ func (p *VaultProvider) read(ctx context.Context) (map[string]interface{}, error
 	if err != nil {
 		return nil, err
 	}
-	return secret.Data, nil
+	data := secret.Data
+	if _, ok := data["current"]; !ok {
+		if inner, ok2 := data["data"].(map[string]interface{}); ok2 {
+			data = inner
+		}
+	}
+	return data, nil
 }
 
 func (p *VaultProvider) write(ctx context.Context, data map[string]interface{}) error {
@@ -75,21 +83,79 @@ func (p *VaultProvider) GetCurrent(ctx context.Context) ([]byte, int, error) {
 		}
 		return kek, 1, nil
 	}
-	cur, ok := data["current"].(int)
-	if !ok {
-		if v, ok2 := data["current"].(float64); ok2 {
-			cur = int(v)
-		} else {
-			return nil, 0, fmt.Errorf("current version missing")
+	var cur int
+	switch v := data["current"].(type) {
+	case int:
+		cur = v
+	case float64:
+		cur = int(v)
+	case json.Number:
+		if n, e := v.Int64(); e == nil {
+			cur = int(n)
 		}
+	case string:
+		if n, e := strconv.Atoi(v); e == nil {
+			cur = n
+		}
+	}
+	if cur == 0 {
+		// treat as not initialized
+		kek := make([]byte, 32)
+		if _, e := rand.Read(kek); e != nil {
+			return nil, 0, e
+		}
+		nonce, ct, e := aead.Encrypt(p.masterKey, nil, kek)
+		if e != nil {
+			return nil, 0, e
+		}
+		init := map[string]interface{}{
+			"current":  1,
+			"versions": map[string]interface{}{"1": map[string]interface{}{"ciphertext": hex.EncodeToString(ct), "nonce": hex.EncodeToString(nonce)}},
+		}
+		if e := p.write(ctx, init); e != nil {
+			return nil, 0, e
+		}
+		return kek, 1, nil
 	}
 	versions, ok := data["versions"].(map[string]interface{})
 	if !ok {
-		return nil, 0, fmt.Errorf("versions missing")
+		// treat as not initialized
+		kek := make([]byte, 32)
+		if _, e := rand.Read(kek); e != nil {
+			return nil, 0, e
+		}
+		nonce, ct, e := aead.Encrypt(p.masterKey, nil, kek)
+		if e != nil {
+			return nil, 0, e
+		}
+		init := map[string]interface{}{
+			"current":  1,
+			"versions": map[string]interface{}{"1": map[string]interface{}{"ciphertext": hex.EncodeToString(ct), "nonce": hex.EncodeToString(nonce)}},
+		}
+		if e := p.write(ctx, init); e != nil {
+			return nil, 0, e
+		}
+		return kek, 1, nil
 	}
 	entry, ok := versions[fmt.Sprintf("%d", cur)].(map[string]interface{})
 	if !ok {
-		return nil, 0, fmt.Errorf("version entry missing")
+		// treat as not initialized for this version and reset to 1
+		kek := make([]byte, 32)
+		if _, e := rand.Read(kek); e != nil {
+			return nil, 0, e
+		}
+		nonce, ct, e := aead.Encrypt(p.masterKey, nil, kek)
+		if e != nil {
+			return nil, 0, e
+		}
+		init := map[string]interface{}{
+			"current":  1,
+			"versions": map[string]interface{}{"1": map[string]interface{}{"ciphertext": hex.EncodeToString(ct), "nonce": hex.EncodeToString(nonce)}},
+		}
+		if e := p.write(ctx, init); e != nil {
+			return nil, 0, e
+		}
+		return kek, 1, nil
 	}
 	hexCt, _ := entry["ciphertext"].(string)
 	nonceHex, _ := entry["nonce"].(string)

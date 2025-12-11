@@ -9,6 +9,6 @@ import-mapping:
 output-options:
   # Используем шаблоны для chi-сервера
   user-templates:
-    chi/chi-middleware.tmpl: ../../tools/oapi-templates/chi-middleware.tmpl
-    chi/chi-handler.tmpl: ../../tools/oapi-templates/chi-handler.tmpl
-    chi/chi-interface.tmpl: ../../tools/oapi-templates/chi-interface.tmpl
+    chi/chi-middleware.tmpl: /workspace/tools/oapi-templates/chi-middleware.tmpl
+    chi/chi-handler.tmpl: /workspace/tools/oapi-templates/chi-handler.tmpl
+    chi/chi-interface.tmpl: /workspace/tools/oapi-templates/chi-interface.tmpl

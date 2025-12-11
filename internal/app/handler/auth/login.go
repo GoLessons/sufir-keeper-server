@@ -52,7 +52,7 @@ func (h *LoginHandler) Handle(w http.ResponseWriter, r *http.Request) {
 	expiresAccess := time.Now().Add(time.Duration(h.accessTokenTTLSeconds) * time.Second)
 	_, accessToken, _ := h.tokenAuth.Encode(map[string]interface{}{"sub": record.ID.String(), "exp": expiresAccess.Unix(), "typ": "access"})
 	expiresRefresh := time.Now().Add(time.Duration(h.refreshTokenTTLSeconds) * time.Second)
-	currentVersion, err := h.users.GetRefreshVersion(r.Context(), record.ID)
+	currentVersion, err := h.users.EnsureRefreshVersion(r.Context(), record.ID)
 	if err != nil {
 		httputil.WriteError(w, http.StatusInternalServerError, "server_error", "Database error")
 		return

@@ -208,6 +208,21 @@ type UploadFileParams struct {
 	XFileID openapi_types.UUID `json:"X-File-ID"`
 }
 
+// PresignFileJSONBody defines parameters for PresignFile.
+type PresignFileJSONBody struct {
+	// Checksum Контрольная сумма (sha256 hex)
+	Checksum *string `json:"checksum,omitempty"`
+
+	// FileId ID файла
+	FileId openapi_types.UUID `json:"fileId"`
+
+	// Filename Имя файла
+	Filename *string `json:"filename,omitempty"`
+
+	// Mime MIME-тип файла
+	Mime *string `json:"mime,omitempty"`
+}
+
 // GetItemsParams defines parameters for GetItems.
 type GetItemsParams struct {
 	// Type Фильтрация по типу записи
@@ -231,6 +246,9 @@ type LoginUserJSONRequestBody = UserLogin
 
 // UploadFileMultipartRequestBody defines body for UploadFile for multipart/form-data ContentType.
 type UploadFileMultipartRequestBody UploadFileMultipartBody
+
+// PresignFileJSONRequestBody defines body for PresignFile for application/json ContentType.
+type PresignFileJSONRequestBody PresignFileJSONBody
 
 // CreateItemJSONRequestBody defines body for CreateItem for application/json ContentType.
 type CreateItemJSONRequestBody = ItemCreate

@@ -12,10 +12,12 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/GoLessons/sufir-keeper-server/internal/api"
+	fileshandler "github.com/GoLessons/sufir-keeper-server/internal/app/handler/files"
 	"github.com/GoLessons/sufir-keeper-server/internal/app/middleware"
 	"github.com/GoLessons/sufir-keeper-server/internal/crypto/keyencrypt"
 	"github.com/GoLessons/sufir-keeper-server/internal/db"
 	"github.com/GoLessons/sufir-keeper-server/internal/repository"
+	"github.com/GoLessons/sufir-keeper-server/internal/s3"
 )
 
 func createApplicationLogger() (*zap.Logger, error) {
@@ -74,18 +76,27 @@ func createHTTPServerAndRouter(configuration AppConfig) (*chi.Mux, *http.Server)
 func createChiServerOptions(router *chi.Mux, logger *zap.Logger, configuration AppConfig, tokenAuth *jwtauth.JWTAuth) api.ChiServerOptions {
 	common := []api.MiddlewareFunc{
 		middleware.RecoverMiddleware(),
-		middleware.ContentTypeValidationMiddleware(),
 		middleware.LoggingMiddleware(logger, middleware.HTTPLogLevels{Success: strings.TrimSpace(configuration.Log.LevelSuccess), ClientError: strings.TrimSpace(configuration.Log.LevelClientError), ServerError: strings.TrimSpace(configuration.Log.LevelServerError)}),
 	}
-	protected := []api.MiddlewareFunc{middleware.AuthRequiredMiddleware(tokenAuth)}
+	protected := middleware.AuthRequiredMiddleware(tokenAuth)
+	jsonOnly := middleware.RequireJSONMiddleware()
+	multipartOnly := middleware.RequireMultipartFormDataMiddleware()
 	middlewares := map[string][]api.MiddlewareFunc{
-		"common":             common,
-		"DELETE /auth":       protected,
-		"GET /items":         protected,
-		"POST /items":        protected,
-		"GET /items/{id}":    protected,
-		"PUT /items/{id}":    protected,
-		"DELETE /items/{id}": protected,
+		"common":              common,
+		"DELETE /auth":        {protected},
+		"POST /auth":          {jsonOnly},
+		"PATCH /auth":         {jsonOnly},
+		"POST /register":      {jsonOnly},
+		"POST /items":         {protected, jsonOnly},
+		"PUT /items/{id}":     {protected, jsonOnly},
+		"GET /items":          {protected, jsonOnly},
+		"GET /items/{id}":     {protected, jsonOnly},
+		"DELETE /items/{id}":  {protected},
+		"POST /files":         {multipartOnly},
+		"POST /files/presign": {protected, jsonOnly},
+		"GET /files/{fileId}": {protected},
+		"GET /auth-verify":    {protected},
+		"POST /auth-verify":   {protected},
 	}
 	return api.ChiServerOptions{BaseURL: "", BaseRouter: router, Middlewares: middlewares, ErrorHandlerFunc: api.DefaultErrorHandler}
 }
@@ -110,9 +121,33 @@ func createServerImplementation(container *ApplicationContainer, tokenAuth *jwta
 	}
 	if provider == nil {
 		provider = &keyencrypt.StaticProvider{Key: make([]byte, 32), Version: 1}
+	} else {
+		if _, _, err := provider.GetCurrent(context.Background()); err != nil {
+			provider = &keyencrypt.StaticProvider{Key: make([]byte, 32), Version: 1}
+		}
 	}
 	deps.KEKProvider = provider
+
+	s3Cfg := container.configuration.S3
+	var s3Client *s3.Client
+	if strings.TrimSpace(s3Cfg.Endpoint) != "" && strings.TrimSpace(s3Cfg.AccessKey) != "" && strings.TrimSpace(s3Cfg.SecretKey) != "" && strings.TrimSpace(s3Cfg.Bucket) != "" {
+		if client, err := s3.NewClient(strings.TrimSpace(s3Cfg.Endpoint), strings.TrimSpace(s3Cfg.AccessKey), strings.TrimSpace(s3Cfg.SecretKey), strings.TrimSpace(s3Cfg.Bucket)); err == nil {
+			s3Client = client
+			_ = client.EnsureBucket(context.Background())
+			_ = client.SetBucketWebhookCreatedEvents(context.Background())
+			wh := fileshandler.NewWebhookHandler(
+				repository.NewItemRepository(container.databaseClient),
+				client,
+				provider,
+				strings.TrimSpace(container.configuration.S3.WebhookSecret),
+			)
+			container.router.Post("/files/webhook-minio", wh.Handle)
+		}
+	}
 	server := api.NewServer(deps)
+	if s3Client != nil {
+		server.SetPresignHandler(fileshandler.NewPresignHandler(s3Client))
+	}
 	return server
 }
 
