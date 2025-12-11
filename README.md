@@ -5,6 +5,7 @@
 [![Lint](https://github.com/GoLessons/sufir-keeper-server/actions/workflows/lint.yml/badge.svg?branch=main)](https://github.com/GoLessons/sufir-keeper-server/actions/workflows/lint.yml)
 [![Migrations](https://github.com/GoLessons/sufir-keeper-server/actions/workflows/migrations-check.yml/badge.svg?branch=main)](https://github.com/GoLessons/sufir-keeper-server/actions/workflows/migrations-check.yml)
 [![Codegen Drift](https://github.com/GoLessons/sufir-keeper-server/actions/workflows/codegen-check.yml/badge.svg?branch=main)](https://github.com/GoLessons/sufir-keeper-server/actions/workflows/codegen-check.yml)
+[![E2E Tests](https://github.com/GoLessons/sufir-keeper-server/actions/workflows/e2e.yml/badge.svg?branch=main)](https://github.com/GoLessons/sufir-keeper-server/actions/workflows/e2e.yml)
 
 Серверное API системы, позволяющей пользователю надёжно и безопасно хранить логины, пароли, бинарные данные и прочую приватную информацию.
 
