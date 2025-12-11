@@ -28,7 +28,7 @@ function docker_compose_up() {
 }
 
 function wait_for_api_ready() {
-  local attempts=60
+  local attempts=20
   local delay_seconds=2
   local i=0
   while [ "$i" -lt "$attempts" ]; do

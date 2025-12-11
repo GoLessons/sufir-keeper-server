@@ -111,8 +111,6 @@ services:
       context: .
       dockerfile: .docker/swagger-ui/Dockerfile
     container_name: keeper-swagger
-    ports:
-      - "8081:8080"
 
   nginx:
     build:
