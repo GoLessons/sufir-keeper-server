@@ -88,7 +88,7 @@ services:
         condition: service_completed_successfully
       vault:
         condition: service_healthy
-    command: bash -lc "go run ./cmd/server"
+    command: go run ./cmd/server
 
   minio:
     build:
