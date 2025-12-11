@@ -16,21 +16,15 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2
 
-      - name: Install docker-compose
-        run: |
-          sudo curl -L "https://github.com/docker/compose/releases/download/v2.24.1/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
-          sudo chmod +x /usr/local/bin/docker-compose
-          docker-compose --version
-
       - name: Start services
         run: |
-          docker-compose up -d --build
-          docker-compose ps
+          docker compose up -d --build
+          docker compose ps
 
       - name: Wait for services to be ready
         run: |
           # Wait for postgres
-          timeout 60s bash -c 'until docker-compose exec -T postgres pg_isready -U keeper -d keeper; do echo "Waiting for postgres..."; sleep 2; done'
+          timeout 60s bash -c 'until docker compose exec -T postgres pg_isready -U keeper -d keeper; do echo "Waiting for postgres..."; sleep 2; done'
           
           # Wait for migrations to complete (migrate container exits successfully)
           timeout 60s bash -c 'until [ "$(docker inspect -f "{{.State.Status}}" keeper-migrate 2>/dev/null)" == "exited" ] && [ "$(docker inspect -f "{{.State.ExitCode}}" keeper-migrate 2>/dev/null)" == "0" ]; do echo "Waiting for migrations..."; sleep 2; done'
@@ -45,4 +39,4 @@ jobs:
 
       - name: Stop services
         if: always()
-        run: docker-compose down
+        run: docker compose down
