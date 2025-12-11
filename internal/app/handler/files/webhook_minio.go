@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"io"
 	"net/http"
 	"strings"
@@ -48,12 +49,15 @@ type minioEvent struct {
 
 func (h *WebhookHandler) Handle(w http.ResponseWriter, r *http.Request) {
 	auth := strings.TrimSpace(r.Header.Get("Authorization"))
+	if strings.HasPrefix(auth, "Bearer ") {
+		auth = strings.TrimSpace(strings.TrimPrefix(auth, "Bearer "))
+	}
 	if h.webhookSecret != "" && auth != h.webhookSecret {
 		httputil.WriteError(w, http.StatusUnauthorized, "unauthorized", "Invalid webhook secret")
 		return
 	}
 	var ev minioEvent
-	if err := httputil.DecodeJSON(r, &ev); err != nil {
+	if err := json.NewDecoder(r.Body).Decode(&ev); err != nil {
 		httputil.WriteError(w, http.StatusBadRequest, "invalid_json", "Invalid JSON")
 		return
 	}

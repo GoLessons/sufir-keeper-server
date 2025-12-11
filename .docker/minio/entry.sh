@@ -9,7 +9,8 @@ until mc ready myminio >/dev/null 2>&1; do
   sleep 0.5
 done
 mc mb -p myminio/"${S3_BUCKET:-keeper}" || true
-mc event add myminio/"${S3_BUCKET:-keeper}" arn:minio:sqs::1:webhook --event put,post,copy,multipart || true
+# Removed 'multipart' and 'post' event type as it can cause issues with some mc versions
+mc event add myminio/"${S3_BUCKET:-keeper}" arn:minio:sqs::1:webhook --event put || true
 mc anonymous set none myminio/"${S3_BUCKET:-keeper}" || true
 
 wait $MINIO_PID

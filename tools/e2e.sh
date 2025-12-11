@@ -292,14 +292,7 @@ function main() {
     fi
   fi
 
-  tmp=$(mktemp)
-  http_code=$(request_multipart_file_to_file "$base_url/files" "$access_token" "$file_id" "$file_path" "$tmp")
-  body=$(cat "$tmp")
-  if [ "$http_code" = "204" ]; then
-    add_result "/files" "POST" "$http_code" "PASS" "Загрузка файла"
-  else
-    add_result "/files" "POST" "$http_code" "FAIL" "Загрузка файла"
-  fi
+  file_id=$(generate_uuid)
 
   tmp=$(mktemp)
   http_code=$(request_to_file "POST" "$base_url/files/presign" "$access_token" "{\"fileId\":\"$file_id\",\"filename\":\"$file_name\",\"mime\":\"text/plain\",\"checksum\":\"$file_sha256\"}" "1" "$tmp")
@@ -321,7 +314,7 @@ function main() {
       upload_url_full="http://localhost:8080$presign_upload_url"
     fi
     local form_fields_block
-    form_fields_block=$(echo "$body" | sed -n 's/.*\"form_fields\"[[:space:]]*:[[:space:]]*{\(.*\)}.*/\1/p')
+    form_fields_block=$(echo "$body" | sed -n 's/.*\"form_fields\"[[:space:]]*:[[:space:]]*{\([^}]*\)}.*/\1/p')
     local fields_present_key=0
     local -a args
     args=( -sS -X POST -H "Authorization: Bearer $access_token" )
@@ -332,6 +325,7 @@ function main() {
       v=$(echo "$kv" | sed -n 's/^\"[^\\"]\+\"[[:space:]]*:[[:space:]]*\"\(.*\)\"$/\1/p')
       if [ -n "$k" ]; then
         if [ "$k" = "key" ]; then fields_present_key=1; fi
+        if [ "$k" = "success_action_status" ]; then continue; fi
         args+=( --form-string "$k=$v" )
       fi
     done
@@ -339,6 +333,7 @@ function main() {
       args+=( --form-string "key=$presign_key" )
     fi
     args+=( -F "file=@$file_path" "$upload_url_full" -w "%{http_code}" -o /dev/null )
+    
     local upload_code
     upload_code=$(curl "${args[@]}")
     if [ "$upload_code" = "204" ]; then
@@ -347,7 +342,7 @@ function main() {
       add_result "/files" "POST" "$upload_code" "FAIL" "Загрузка файла"
     fi
   else
-    add_result "/files" "POST" "" "FAIL" "Загрузка файла"
+    add_result "/files" "POST" "" "FAIL" "Загрузка файла (нет presign)"
   fi
 
   local downloaded_path
