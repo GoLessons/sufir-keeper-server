@@ -1,13 +1,9 @@
 name: E2E Tests
 
 on:
-  push:
-    branches:
-      - main
   pull_request:
-    branches:
-      - main
-  workflow_dispatch:
+  push:
+    branches: [ "main", "master" ]
 
 jobs:
   e2e-tests:
