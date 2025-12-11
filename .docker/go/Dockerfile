@@ -1,5 +1,5 @@
 FROM golangci/golangci-lint:v2.7.2-alpine AS lint-base
-FROM golang:1.23-bookworm
+FROM golang:1.25-bookworm
 
 ENV CGO_ENABLED=1
 ENV PATH="/usr/local/go/bin:/go/bin:${PATH}"
