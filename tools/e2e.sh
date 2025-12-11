@@ -384,6 +384,15 @@ function main() {
   fi
 
   print_table
+
+  # Check for failures and exit accordingly
+  for row in "${results[@]}"; do
+    if echo "$row" | grep -q "FAIL"; then
+      echo "Tests failed!"
+      exit 1
+    fi
+  done
+  exit 0
 }
 
 main
