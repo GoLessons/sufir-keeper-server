@@ -48,17 +48,17 @@ func (h *PresignHandler) Handle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	meta := map[string]string{
-		"x-amz-meta-user-id": userID.String(),
-		"x-amz-meta-file-id": req.FileID.String(),
+		"user-id": userID.String(),
+		"file-id": req.FileID.String(),
 	}
 	if s := strings.TrimSpace(req.Filename); s != "" {
-		meta["x-amz-meta-filename"] = s
+		meta["filename"] = s
 	}
 	if s := strings.TrimSpace(req.Mime); s != "" {
-		meta["x-amz-meta-mime"] = s
+		meta["mime"] = s
 	}
 	if s := strings.TrimSpace(req.Checksum); s != "" {
-		meta["x-amz-meta-checksum"] = s
+		meta["checksum"] = s
 	}
 	uploadURL, fields, err := h.s3.PresignPost(r.Context(), req.FileID.String(), req.Mime, 0, meta, time.Hour)
 	if err != nil {

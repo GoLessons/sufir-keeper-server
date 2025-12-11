@@ -64,11 +64,13 @@ func (h *WebhookHandler) Handle(w http.ResponseWriter, r *http.Request) {
 	for _, rec := range ev.Records {
 		key := strings.TrimSpace(rec.S3.Object.Key)
 		meta := rec.S3.Object.UserMetadata
-		userIDStr := strings.TrimSpace(meta["user-id"])
-		fileIDStr := strings.TrimSpace(meta["file-id"])
-		checksum := strings.TrimSpace(meta["checksum"])
-		filename := strings.TrimSpace(meta["filename"])
-		mime := strings.TrimSpace(meta["mime"])
+
+		userIDStr := strings.TrimSpace(getMeta(meta, "user-id"))
+		fileIDStr := strings.TrimSpace(getMeta(meta, "file-id"))
+		checksum := strings.TrimSpace(getMeta(meta, "checksum"))
+		filename := strings.TrimSpace(getMeta(meta, "filename"))
+		mime := strings.TrimSpace(getMeta(meta, "mime"))
+
 		if userIDStr == "" || fileIDStr == "" {
 			_ = h.s3client.RemoveObject(r.Context(), key)
 			continue
@@ -148,5 +150,19 @@ func (h *WebhookHandler) Handle(w http.ResponseWriter, r *http.Request) {
 		}
 		_ = h.s3client.RemoveObject(r.Context(), key)
 	}
-	w.WriteHeader(http.StatusNoContent)
+}
+
+func getMeta(m map[string]string, key string) string {
+	if v, ok := m[key]; ok {
+		return v
+	}
+	key = strings.ToLower(key)
+	keyWithPrefix := "x-amz-meta-" + key
+	for k, v := range m {
+		k = strings.ToLower(k)
+		if k == key || k == keyWithPrefix {
+			return v
+		}
+	}
+	return ""
 }

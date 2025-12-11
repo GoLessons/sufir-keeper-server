@@ -338,6 +338,17 @@ function main() {
     upload_code=$(curl "${args[@]}")
     if [ "$upload_code" = "204" ]; then
       add_result "/files" "POST" "$upload_code" "PASS" "Загрузка файла"
+      
+      # Wait for webhook to process (retry loop)
+      local attempts=0
+      while [ $attempts -lt 10 ]; do
+        if curl -sS -H "Authorization: Bearer $access_token" "$base_url/items/$file_id" -f >/dev/null 2>&1; then
+           break
+        fi
+        sleep 1
+        attempts=$((attempts + 1))
+      done
+
     else
       add_result "/files" "POST" "$upload_code" "FAIL" "Загрузка файла"
     fi
