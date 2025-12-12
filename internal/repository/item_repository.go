@@ -37,22 +37,51 @@ func (r *ItemRepository) Create(ctx context.Context, rec model.ItemRecord) (mode
 	if _, err := r.client.SQL.ExecContext(ctx, sqlStr, args...); err != nil {
 		return model.ItemRecord{}, err
 	}
+	if rec.File != nil {
+		insFile := r.client.Builder.
+			Insert("keep.items_files").
+			Columns("item_id", "s3_bucket", "s3_key", "size", "sha256").
+			Values(rec.ID, rec.File.S3Bucket, rec.File.S3Key, rec.File.Size, rec.File.SHA256)
+		sqlStrFile, argsFile, err := insFile.ToSql()
+		if err != nil {
+			// Should probably delete the item here, but for simplicity we return error
+			return model.ItemRecord{}, err
+		}
+		if _, err := r.client.SQL.ExecContext(ctx, sqlStrFile, argsFile...); err != nil {
+			return model.ItemRecord{}, err
+		}
+	}
 	return rec, nil
 }
 
 func (r *ItemRepository) Get(ctx context.Context, userID uuid.UUID, id uuid.UUID) (model.ItemRecord, error) {
-	q := r.client.Builder.Select("id", "user_id", "title", "type", "data_encrypted", "data_nonce", "data_key_encrypted", "data_key_nonce", "kek_version", "meta", "created_at", "updated_at").
-		From("keep.items").Where(sq.Eq{"id": id, "user_id": userID}).Limit(1)
+	q := r.client.Builder.Select("i.id", "i.user_id", "i.title", "i.type", "i.data_encrypted", "i.data_nonce", "i.data_key_encrypted", "i.data_key_nonce", "i.kek_version", "i.meta", "i.created_at", "i.updated_at", "f.s3_bucket", "f.s3_key", "f.size", "f.sha256").
+		From("keep.items i").
+		LeftJoin("keep.items_files f ON i.id = f.item_id").
+		Where(sq.Eq{"i.id": id, "i.user_id": userID}).Limit(1)
 	sqlStr, args, err := q.ToSql()
 	if err != nil {
 		return model.ItemRecord{}, err
 	}
 	var rec model.ItemRecord
 	var metaBytes []byte
-	err = r.client.SQL.QueryRowContext(ctx, sqlStr, args...).Scan(&rec.ID, &rec.UserID, &rec.Title, &rec.Type, &rec.DataEncrypted, &rec.DataNonce, &rec.DataKeyEncrypted, &rec.DataKeyNonce, &rec.KEKVersion, &metaBytes, &rec.CreatedAt, &rec.UpdatedAt)
+	var s3Bucket, s3Key, sha256 *string
+	var size *int64
+	err = r.client.SQL.QueryRowContext(ctx, sqlStr, args...).Scan(&rec.ID, &rec.UserID, &rec.Title, &rec.Type, &rec.DataEncrypted, &rec.DataNonce, &rec.DataKeyEncrypted, &rec.DataKeyNonce, &rec.KEKVersion, &metaBytes, &rec.CreatedAt, &rec.UpdatedAt, &s3Bucket, &s3Key, &size, &sha256)
 	if err != nil {
 		return model.ItemRecord{}, err
 	}
+	if s3Bucket != nil && s3Key != nil && size != nil {
+		rec.File = &model.ItemFile{
+			S3Bucket: *s3Bucket,
+			S3Key:    *s3Key,
+			Size:     *size,
+		}
+		if sha256 != nil {
+			rec.File.SHA256 = *sha256
+		}
+	}
+
 	if len(metaBytes) > 0 {
 		var meta map[string]string
 		_ = json.Unmarshal(metaBytes, &meta)

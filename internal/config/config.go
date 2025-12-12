@@ -60,11 +60,12 @@ type CryptoConfig struct {
 }
 
 type S3Config struct {
-	Endpoint      string `json:"endpoint" env:"S3_ENDPOINT" flag:"s3-endpoint"`
-	AccessKey     string `json:"access_key" env:"S3_ACCESS_KEY" flag:"s3-access-key"`
-	SecretKey     string `json:"secret_key" env:"S3_SECRET_KEY" flag:"s3-secret-key"`
-	Bucket        string `json:"bucket" env:"S3_BUCKET" flag:"s3-bucket"`
-	WebhookSecret string `json:"webhook_secret" env:"MINIO_WEBHOOK_SECRET" flag:"minio-webhook-secret"`
+	Endpoint        string `json:"endpoint" env:"S3_ENDPOINT" flag:"s3-endpoint"`
+	AccessKey       string `json:"access_key" env:"S3_ACCESS_KEY" flag:"s3-access-key"`
+	SecretKey       string `json:"secret_key" env:"S3_SECRET_KEY" flag:"s3-secret-key"`
+	Bucket          string `json:"bucket" env:"S3_BUCKET" flag:"s3-bucket"`
+	BucketProtected string `json:"bucket_protected" env:"S3_BUCKET_PROTECTED" flag:"s3-bucket-protected"`
+	WebhookSecret   string `json:"webhook_secret" env:"MINIO_WEBHOOK_SECRET" flag:"minio-webhook-secret"`
 }
 
 func LoadApplicationConfiguration() (AppConfig, error) {
@@ -112,6 +113,9 @@ func LoadApplicationConfiguration() (AppConfig, error) {
 	if configuration.Auth.RefreshTokenTTLSeconds <= 0 {
 		configuration.Auth.RefreshTokenTTLSeconds = 30 * 24 * 3600
 	}
+	if strings.TrimSpace(configuration.S3.BucketProtected) == "" {
+		configuration.S3.BucketProtected = configuration.S3.Bucket + "-protected"
+	}
 	return configuration, nil
 }
 
@@ -136,6 +140,10 @@ func validateApplicationConfiguration(configuration AppConfig) error {
 	database := strings.TrimPrefix(parsed.Path, "/")
 	if strings.TrimSpace(database) == "" {
 		return errors.New("в URL отсутствует имя базы данных")
+	}
+
+	if strings.TrimSpace(configuration.S3.Bucket) == "" {
+		return errors.New("s3 bucket is required")
 	}
 
 	return nil

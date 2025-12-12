@@ -133,13 +133,15 @@ func createServerImplementation(container *ApplicationContainer, tokenAuth *jwta
 	if strings.TrimSpace(s3Cfg.Endpoint) != "" && strings.TrimSpace(s3Cfg.AccessKey) != "" && strings.TrimSpace(s3Cfg.SecretKey) != "" && strings.TrimSpace(s3Cfg.Bucket) != "" {
 		if client, err := s3.NewClient(strings.TrimSpace(s3Cfg.Endpoint), strings.TrimSpace(s3Cfg.AccessKey), strings.TrimSpace(s3Cfg.SecretKey), strings.TrimSpace(s3Cfg.Bucket)); err == nil {
 			s3Client = client
-			_ = client.EnsureBucket(context.Background())
+			_ = client.EnsureBucket(context.Background(), "")
+			_ = client.EnsureBucket(context.Background(), strings.TrimSpace(container.configuration.S3.BucketProtected))
 			_ = client.SetBucketWebhookCreatedEvents(context.Background())
 			wh := fileshandler.NewWebhookHandler(
 				repository.NewItemRepository(container.databaseClient),
 				client,
 				provider,
 				strings.TrimSpace(container.configuration.S3.WebhookSecret),
+				strings.TrimSpace(container.configuration.S3.BucketProtected),
 			)
 			container.router.Post("/files/webhook-minio", wh.Handle)
 		}
@@ -147,6 +149,9 @@ func createServerImplementation(container *ApplicationContainer, tokenAuth *jwta
 	server := api.NewServer(deps)
 	if s3Client != nil {
 		server.SetPresignHandler(fileshandler.NewPresignHandler(s3Client))
+		server.SetDownloadHandler(fileshandler.NewDownloadHandler(deps.ItemsRepository, s3Client, provider))
+	} else {
+		server.SetDownloadHandler(fileshandler.NewDownloadHandler(deps.ItemsRepository, nil, provider))
 	}
 	return server
 }

@@ -64,11 +64,15 @@ func NewServer(deps ServerDependencies) *Server {
 		itemsGet:      itemshandler.NewGetHandler(items, kekProvider, deps.TokenAuth),
 		itemsUpdate:   itemshandler.NewUpdateHandler(items, kekProvider, deps.TokenAuth),
 		itemsDelete:   itemshandler.NewDeleteHandler(items, kekProvider, deps.TokenAuth),
-		filesDownload: fileshandler.NewDownloadHandler(items, kekProvider),
-		filesPresign:  nil,
+		filesDownload: nil, // set via SetDownloadHandler
+		filesPresign:  nil, // set via SetPresignHandler
 		verify:        authhandler.NewVerifyHandler(),
 		kek:           kekProvider,
 	}
+}
+
+func (s *Server) SetDownloadHandler(h *fileshandler.DownloadHandler) {
+	s.filesDownload = h
 }
 
 func (s *Server) SetPresignHandler(h *fileshandler.PresignHandler) {

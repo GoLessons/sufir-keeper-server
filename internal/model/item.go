@@ -6,10 +6,18 @@ import (
 	"github.com/google/uuid"
 )
 
+type ItemFile struct {
+	S3Bucket string
+	S3Key    string
+	SHA256   string
+	Size     int64
+}
+
 type ItemRecord struct {
 	CreatedAt        time.Time
 	UpdatedAt        time.Time
 	Meta             map[string]string
+	File             *ItemFile
 	Title            string
 	Type             string
 	DataEncrypted    []byte
