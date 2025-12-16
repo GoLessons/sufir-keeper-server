@@ -33,3 +33,4 @@ go.work.sum
 # Project temp files
 var/*
 !var/.gitkeep
+/.docker/nginx/certs/

@@ -2,7 +2,7 @@ ignoreGeneratedHeader = false
 severity = "warning"
 
 rules = [
-  { name = "var-naming" },
+  { name = "var-naming", arguments = [[], [], [{ skipPackageNameChecks = true }]] },
   { name = "function-naming" },
   { name = "indent-error-flow" },
   { name = "error-naming" },

@@ -27,10 +27,18 @@
 - `S3_ENDPOINT` - адрес MinIO для приложения (по умолчанию `http://minio:9000`).
 - `S3_ACCESS_KEY`, `S3_SECRET_KEY` - креды для доступа приложения к MinIO (по умолчанию совпадают с root пользователем).
 - `S3_BUCKET` - имя бакета для хранения файлов (по умолчанию `keeper`).
-- `MINIO_WEBHOOK_SECRET` - секрет для авторизации webhook‑запросов от MinIO к приложению (по умолчанию `dev-webhook-secret`).
+ - `MINIO_WEBHOOK_SECRET` - секрет для авторизации webhook‑запросов от MinIO к приложению (по умолчанию `dev-webhook-secret`).
 
 ### Примечания:
 
 - Сервис `nginx` пробрасывает прямую загрузку в MinIO через `location /files` и `location /api/v1/files`.
 - Webhook MinIO направлен на `POST /files/webhook-minio` приложения. Для устойчивости включена очередь (`MINIO_NOTIFY_WEBHOOK_QUEUE_DIR_1`, `MINIO_NOTIFY_WEBHOOK_QUEUE_LIMIT_1`).
 - Приложение использует значения `S3_*` для чтения/удаления объектов, а шифрование и запись в БД выполняется при обработке webhook.
+
+## Локальный TLS
+
+- Для локальных интеграционных проверок фронт `nginx` использует TLS на порту `8443`; HTTP на порту `8080` закрыт и выполняет редирект на HTTPS.
+- Сертификаты для `nginx` хранятся в каталоге `.docker/nginx/certs` и не коммитятся; для сборки dev сертификации выполните скрипт:
+- `tools/tls/devcert.sh` — генерирует dev CA (`dev-ca.crt`) и серверный сертификат (`server.crt`, `server.key`) с SAN для `localhost`, `127.0.0.1`, `::1`.
+- Затем поднимите сервисы: `docker compose up -d nginx app minio`.
+- Для CLI используйте строгую проверку TLS, указав путь к `dev-ca.crt` как доверенный корневой CA.

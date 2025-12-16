@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 
-base_url="http://localhost:8080/api/v1"
+base_url="https://localhost:8443/api/v1"
 compose_file="docker-compose.yml"
+cacert_path="${CACERT_PATH:-./.docker/nginx/certs/dev-ca.crt}"
 
 results=()
 item_ids=()
@@ -27,13 +28,24 @@ function docker_compose_up() {
   docker compose -f "$compose_file" up -d
 }
 
+function generate_dev_certificates() {
+  if [ ! -f "$cacert_path" ]; then
+    if [ -x "tools/tls/devcert.sh" ]; then
+      tools/tls/devcert.sh
+    else
+      echo "tools/tls/devcert.sh not found or not executable" >&2
+      exit 1
+    fi
+  fi
+}
+
 function wait_for_api_ready() {
   local attempts=20
   local delay_seconds=2
   local i=0
   while [ "$i" -lt "$attempts" ]; do
     local status
-    status=$(curl -s -o /dev/null -w "%{http_code}" "$base_url/items")
+    status=$(curl --cacert "$cacert_path" -s -o /dev/null -w "%{http_code}" "$base_url/items")
     if [ "$status" = "401" ] || [ "$status" = "200" ]; then
       return 0
     fi
@@ -53,15 +65,15 @@ function request_to_file() {
   local http_code
   if [ "$use_json" = "1" ]; then
     if [ -n "$token" ]; then
-      http_code=$(curl -sS -X "$method" -H "Authorization: Bearer $token" -H "Content-Type: application/json" -d "$json_body" -o "$out_file" "$url" -w "%{http_code}")
+      http_code=$(curl --cacert "$cacert_path" -sS -X "$method" -H "Authorization: Bearer $token" -H "Content-Type: application/json" -d "$json_body" -o "$out_file" "$url" -w "%{http_code}")
     else
-      http_code=$(curl -sS -X "$method" -H "Content-Type: application/json" -d "$json_body" -o "$out_file" "$url" -w "%{http_code}")
+      http_code=$(curl --cacert "$cacert_path" -sS -X "$method" -H "Content-Type: application/json" -d "$json_body" -o "$out_file" "$url" -w "%{http_code}")
     fi
   else
     if [ -n "$token" ]; then
-      http_code=$(curl -sS -X "$method" -H "Authorization: Bearer $token" -o "$out_file" "$url" -w "%{http_code}")
+      http_code=$(curl --cacert "$cacert_path" -sS -X "$method" -H "Authorization: Bearer $token" -o "$out_file" "$url" -w "%{http_code}")
     else
-      http_code=$(curl -sS -X "$method" -o "$out_file" "$url" -w "%{http_code}")
+      http_code=$(curl --cacert "$cacert_path" -sS -X "$method" -o "$out_file" "$url" -w "%{http_code}")
     fi
   fi
   printf "%s" "$http_code"
@@ -74,7 +86,7 @@ function request_multipart_file_to_file() {
   local file_path="$4"
   local out_file="$5"
   local http_code
-  http_code=$(curl -sS -X POST -H "Authorization: Bearer $token" -H "X-File-ID: $file_id" -F "file=@$file_path" -o "$out_file" "$url" -w "%{http_code}")
+  http_code=$(curl --cacert "$cacert_path" -sS -X POST -H "Authorization: Bearer $token" -H "X-File-ID: $file_id" -F "file=@$file_path" -o "$out_file" "$url" -w "%{http_code}")
   printf "%s" "$http_code"
 }
 
@@ -94,6 +106,7 @@ function compute_sha256() {
 }
 
 function main() {
+  generate_dev_certificates
   docker_compose_up || true
   wait_for_api_ready || {
     add_result "/items" "GET" "" "FAIL" "API не готов"
@@ -311,7 +324,7 @@ function main() {
     if echo "$presign_upload_url" | grep -qE '^https?://'; then
       upload_url_full="$presign_upload_url"
     else
-      upload_url_full="http://localhost:8080$presign_upload_url"
+      upload_url_full="https://localhost:8443$presign_upload_url"
     fi
     local form_fields_block
     form_fields_block=$(echo "$body" | sed -n 's/.*\"form_fields\"[[:space:]]*:[[:space:]]*{\([^}]*\)}.*/\1/p')
@@ -335,6 +348,7 @@ function main() {
     args+=( -F "file=@$file_path" "$upload_url_full" -w "%{http_code}" -o /dev/null )
     
     local upload_code
+    args+=( --cacert "$cacert_path" )
     upload_code=$(curl "${args[@]}")
     if [ "$upload_code" = "204" ]; then
       add_result "/files" "POST" "$upload_code" "PASS" "Загрузка файла"
@@ -342,7 +356,7 @@ function main() {
       # Wait for webhook to process (retry loop)
       local attempts=0
       while [ $attempts -lt 10 ]; do
-        if curl -sS -H "Authorization: Bearer $access_token" "$base_url/items/$file_id" -f >/dev/null 2>&1; then
+        if curl --cacert "$cacert_path" -sS -H "Authorization: Bearer $access_token" "$base_url/items/$file_id" -f >/dev/null 2>&1; then
            break
         fi
         sleep 1
@@ -359,7 +373,7 @@ function main() {
   local downloaded_path
   downloaded_path=$(mktemp)
   local download_out
-  download_out=$(curl -sS -H "Authorization: Bearer $access_token" "$base_url/files/$file_id" -o "$downloaded_path" -w "%{http_code}")
+  download_out=$(curl --cacert "$cacert_path" -sS -H "Authorization: Bearer $access_token" "$base_url/files/$file_id" -o "$downloaded_path" -w "%{http_code}")
   local download_code
   download_code="$download_out"
   if [ "$download_code" = "200" ]; then
