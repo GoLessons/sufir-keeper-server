@@ -61,23 +61,27 @@ func NewServer(deps ServerDependencies) *Server {
 		refresh:       authhandler.NewRefreshHandler(users, deps.TokenAuth, deps.AccessTokenTTLSeconds, deps.RefreshTokenTTLSeconds),
 		register:      authhandler.NewRegisterHandler(users),
 		logout:        authhandler.NewLogoutHandler(users, deps.TokenAuth),
-		itemsCreate:   itemshandler.NewCreateHandler(items, kekProvider, deps.TokenAuth),
+		itemsCreate:   nil,
 		itemsList:     itemshandler.NewListHandler(items, kekProvider, deps.TokenAuth),
-		itemsGet:      itemshandler.NewGetHandler(items, kekProvider, deps.TokenAuth),
-		itemsUpdate:   itemshandler.NewUpdateHandler(items, kekProvider, deps.TokenAuth),
+		itemsGet:      nil,
+		itemsUpdate:   nil,
 		itemsDelete:   itemshandler.NewDeleteHandler(items, kekProvider, deps.TokenAuth, deps.S3Client),
-		filesDownload: fileshandler.NewDownloadHandler(items, deps.S3Client, kekProvider),
+		filesDownload: nil,
 		filesPresign:  nil,
 		verify:        authhandler.NewVerifyHandler(),
 		kek:           kekProvider,
+	}
+	if kekProvider != nil {
+		srv.itemsCreate = itemshandler.NewCreateHandler(items, kekProvider, deps.TokenAuth)
+		srv.itemsGet = itemshandler.NewGetHandler(items, kekProvider, deps.TokenAuth)
+		srv.itemsUpdate = itemshandler.NewUpdateHandler(items, kekProvider, deps.TokenAuth)
+		srv.filesDownload = fileshandler.NewDownloadHandler(items, deps.S3Client, kekProvider)
 	}
 	if deps.S3Client != nil {
 		srv.filesPresign = fileshandler.NewPresignHandler(deps.S3Client)
 	}
 	return srv
 }
-
-// Immutable server: all handlers are set during construction
 
 func (s *Server) LogoutUser(w http.ResponseWriter, r *http.Request)     { s.logout.Handle(w, r) }
 func (s *Server) RefreshToken(w http.ResponseWriter, r *http.Request)   { s.refresh.Handle(w, r) }
@@ -86,16 +90,31 @@ func (s *Server) RegisterUser(w http.ResponseWriter, r *http.Request)   { s.regi
 func (s *Server) AuthVerifyGet(w http.ResponseWriter, r *http.Request)  { s.verify.Handle(w, r) }
 func (s *Server) AuthVerifyPost(w http.ResponseWriter, r *http.Request) { s.verify.Handle(w, r) }
 
-func (s *Server) CreateItem(w http.ResponseWriter, r *http.Request) { s.itemsCreate.Handle(w, r) }
+func (s *Server) CreateItem(w http.ResponseWriter, r *http.Request) {
+	if s.itemsCreate == nil {
+		http.Error(w, "kek not available", http.StatusServiceUnavailable)
+		return
+	}
+	s.itemsCreate.Handle(w, r)
+}
+
 func (s *Server) GetItems(w http.ResponseWriter, r *http.Request, params GetItemsParams) {
 	s.itemsList.Handle(w, r, params)
 }
 
 func (s *Server) GetItem(w http.ResponseWriter, r *http.Request, id apiTypes.UUID) {
+	if s.itemsGet == nil {
+		http.Error(w, "kek not available", http.StatusServiceUnavailable)
+		return
+	}
 	s.itemsGet.Handle(w, r, uuid.UUID(id))
 }
 
 func (s *Server) UpdateItem(w http.ResponseWriter, r *http.Request, id apiTypes.UUID) {
+	if s.itemsUpdate == nil {
+		http.Error(w, "kek not available", http.StatusServiceUnavailable)
+		return
+	}
 	s.itemsUpdate.Handle(w, r, uuid.UUID(id))
 }
 
@@ -116,5 +135,9 @@ func (s *Server) PresignFile(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) DownloadFile(w http.ResponseWriter, r *http.Request, fileID apiTypes.UUID) {
+	if s.filesDownload == nil {
+		http.Error(w, "download not available", http.StatusServiceUnavailable)
+		return
+	}
 	s.filesDownload.Handle(w, r, uuid.UUID(fileID))
 }

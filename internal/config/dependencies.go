@@ -119,13 +119,47 @@ func createServerImplementation(container *ApplicationContainer, tokenAuth *jwta
 			provider = vp
 		}
 	}
-	if provider == nil {
-		provider = &keyencrypt.StaticProvider{Key: make([]byte, 32), Version: 1}
-	} else {
+	if provider != nil {
 		if _, _, err := provider.GetCurrent(context.Background()); err != nil {
-			provider = &keyencrypt.StaticProvider{Key: make([]byte, 32), Version: 1}
+			provider = nil
 		}
 	}
+	deps.KEKProvider = provider
+
+	s3Cfg := container.configuration.S3
+	var s3Client *s3.Client
+	if provider != nil && strings.TrimSpace(s3Cfg.Endpoint) != "" && strings.TrimSpace(s3Cfg.AccessKey) != "" && strings.TrimSpace(s3Cfg.SecretKey) != "" && strings.TrimSpace(s3Cfg.Bucket) != "" {
+		if client, err := s3.NewClient(strings.TrimSpace(s3Cfg.Endpoint), strings.TrimSpace(s3Cfg.AccessKey), strings.TrimSpace(s3Cfg.SecretKey), strings.TrimSpace(s3Cfg.Bucket)); err == nil {
+			s3Client = client
+			_ = client.EnsureBucket(context.Background(), "")
+			_ = client.EnsureBucket(context.Background(), strings.TrimSpace(container.configuration.S3.BucketProtected))
+			_ = client.SetBucketWebhookCreatedEvents(context.Background())
+			wh := fileshandler.NewWebhookHandler(
+				repository.NewItemRepository(container.databaseClient),
+				client,
+				provider,
+				strings.TrimSpace(container.configuration.S3.WebhookSecret),
+				strings.TrimSpace(container.configuration.S3.BucketProtected),
+			)
+			container.router.Post("/files/webhook-minio", wh.Handle)
+		}
+	}
+	deps.S3Client = s3Client
+	server := api.NewServer(deps)
+	return server
+}
+
+func CreateServerImplementationForTests(container *ApplicationContainer, tokenAuth *jwtauth.JWTAuth) api.ServerInterface {
+	deps := api.ServerDependencies{
+		Logger:                 container.logger,
+		DatabaseClient:         container.databaseClient,
+		TokenAuth:              tokenAuth,
+		AccessTokenTTLSeconds:  container.configuration.Auth.AccessTokenTTLSeconds,
+		RefreshTokenTTLSeconds: container.configuration.Auth.RefreshTokenTTLSeconds,
+		UsersRepository:        repository.NewUserRepository(container.databaseClient),
+		ItemsRepository:        repository.NewItemRepository(container.databaseClient),
+	}
+	provider := keyencrypt.NewStaticProvider(make([]byte, 32), 1)
 	deps.KEKProvider = provider
 
 	s3Cfg := container.configuration.S3
@@ -147,8 +181,7 @@ func createServerImplementation(container *ApplicationContainer, tokenAuth *jwta
 		}
 	}
 	deps.S3Client = s3Client
-	server := api.NewServer(deps)
-	return server
+	return api.NewServer(deps)
 }
 
 func createJWTAuth(configuration AppConfig) (*jwtauth.JWTAuth, error) {
