@@ -2,6 +2,7 @@ package files
 
 import (
 	"net/http"
+	"path/filepath"
 	"strings"
 
 	"github.com/go-chi/jwtauth/v5"
@@ -19,4 +20,19 @@ func UserIDFromRequest(r *http.Request) (uuid.UUID, bool) {
 		return uuid.Nil, false
 	}
 	return id, true
+}
+
+func sanitizeHeaderFilename(name string) string {
+	s := strings.TrimSpace(name)
+	if s == "" {
+		return ""
+	}
+	replacer := strings.NewReplacer("\r", "", "\n", "", "\t", "")
+	s = replacer.Replace(s)
+	s = filepath.Base(s)
+	if len(s) > 255 {
+		s = s[:255]
+	}
+	s = strings.TrimSpace(s)
+	return s
 }

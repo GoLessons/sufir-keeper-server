@@ -32,7 +32,7 @@ func (h *RegisterHandler) Handle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	login := strings.TrimSpace(body.Login)
-	if login == "" || len(login) < 3 || len(body.Password) < 3 {
+	if login == "" || len(login) < 3 || !auth.ValidatePasswordStrength(body.Password) {
 		httputil.WriteError(w, http.StatusBadRequest, "bad_request", "Invalid login or password")
 		return
 	}

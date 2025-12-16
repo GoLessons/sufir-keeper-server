@@ -112,14 +112,22 @@ func (h *RefreshHandler) Handle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	expiresAccess := time.Now().Add(time.Duration(h.accessTokenTTLSeconds) * time.Second)
-	_, accessToken, _ := h.tokenAuth.Encode(map[string]interface{}{"sub": subject, "exp": expiresAccess.Unix(), "typ": "access"})
+	_, accessToken, err := h.tokenAuth.Encode(map[string]interface{}{"sub": subject, "exp": expiresAccess.Unix(), "typ": "access"})
+	if err != nil {
+		httputil.WriteError(w, http.StatusInternalServerError, "server_error", "Token generation error")
+		return
+	}
 	expiresRefresh := time.Now().Add(time.Duration(h.refreshTokenTTLSeconds) * time.Second)
 	newVersion, err := h.users.IncrementRefreshVersion(r.Context(), userID)
 	if err != nil {
 		httputil.WriteError(w, http.StatusInternalServerError, "server_error", "Database error")
 		return
 	}
-	_, refreshToken, _ := h.tokenAuth.Encode(map[string]interface{}{"sub": subject, "exp": expiresRefresh.Unix(), "typ": "refresh", "ver": newVersion})
+	_, refreshToken, err := h.tokenAuth.Encode(map[string]interface{}{"sub": subject, "exp": expiresRefresh.Unix(), "typ": "refresh", "ver": newVersion})
+	if err != nil {
+		httputil.WriteError(w, http.StatusInternalServerError, "server_error", "Token generation error")
+		return
+	}
 	tokenType := "bearer"
 	expiresIn := h.accessTokenTTLSeconds
 	response := apitypes.AuthResponse{AccessToken: &accessToken, RefreshToken: &refreshToken, TokenType: &tokenType, ExpiresIn: &expiresIn}

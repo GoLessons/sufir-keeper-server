@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"time"
 
@@ -205,6 +206,63 @@ func (r *ItemRepository) Delete(ctx context.Context, userID uuid.UUID, id uuid.U
 	if err != nil {
 		return err
 	}
-	_, err = r.client.SQL.ExecContext(ctx, sqlStr, args...)
-	return err
+	res, err := r.client.SQL.ExecContext(ctx, sqlStr, args...)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return sql.ErrNoRows
+	}
+	return nil
+}
+
+func (r *ItemRepository) BeginTx(ctx context.Context) (*sql.Tx, error) {
+	return r.client.SQL.BeginTx(ctx, &sql.TxOptions{})
+}
+
+func (r *ItemRepository) GetWithTx(ctx context.Context, tx *sql.Tx, userID uuid.UUID, id uuid.UUID) (model.ItemRecord, error) {
+	q := r.client.Builder.Select("i.id", "i.user_id", "i.title", "i.type", "i.data_encrypted", "i.data_nonce", "i.data_key_encrypted", "i.data_key_nonce", "i.kek_version", "i.meta", "i.created_at", "i.updated_at", "f.s3_bucket", "f.s3_key", "f.size", "f.sha256").
+		From("keep.items i").
+		LeftJoin("keep.items_files f ON i.id = f.item_id").
+		Where(sq.Eq{"i.id": id, "i.user_id": userID}).Limit(1)
+	sqlStr, args, err := q.ToSql()
+	if err != nil {
+		return model.ItemRecord{}, err
+	}
+	var rec model.ItemRecord
+	var metaBytes []byte
+	var s3Bucket, s3Key, sha256 *string
+	var size *int64
+	err = tx.QueryRowContext(ctx, sqlStr, args...).Scan(&rec.ID, &rec.UserID, &rec.Title, &rec.Type, &rec.DataEncrypted, &rec.DataNonce, &rec.DataKeyEncrypted, &rec.DataKeyNonce, &rec.KEKVersion, &metaBytes, &rec.CreatedAt, &rec.UpdatedAt, &s3Bucket, &s3Key, &size, &sha256)
+	if err != nil {
+		return model.ItemRecord{}, err
+	}
+	if s3Bucket != nil && s3Key != nil && size != nil {
+		rec.File = &model.ItemFile{S3Bucket: *s3Bucket, S3Key: *s3Key, Size: *size}
+		if sha256 != nil {
+			rec.File.SHA256 = *sha256
+		}
+	}
+	if len(metaBytes) > 0 {
+		var meta map[string]string
+		_ = json.Unmarshal(metaBytes, &meta)
+		rec.Meta = meta
+	}
+	return rec, nil
+}
+
+func (r *ItemRepository) DeleteWithTx(ctx context.Context, tx *sql.Tx, userID uuid.UUID, id uuid.UUID) error {
+	d := r.client.Builder.Delete("keep.items").Where(sq.Eq{"id": id, "user_id": userID})
+	sqlStr, args, err := d.ToSql()
+	if err != nil {
+		return err
+	}
+	res, err := tx.ExecContext(ctx, sqlStr, args...)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return sql.ErrNoRows
+	}
+	return nil
 }

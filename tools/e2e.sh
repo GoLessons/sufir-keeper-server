@@ -104,7 +104,7 @@ function main() {
   local unique_login
   unique_login="e2e_user_$(date +%s)"
   local user_password
-  user_password="strongpassword123"
+  user_password="strongpassword123!"
 
   local http_code body tmp
   tmp=$(mktemp)

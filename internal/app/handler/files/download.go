@@ -53,16 +53,21 @@ func (h *DownloadHandler) Handle(w http.ResponseWriter, r *http.Request, id uuid
 	}
 
 	w.Header().Set("Content-Type", "application/octet-stream")
-	if strings.TrimSpace(rec.Title) != "" {
-		w.Header().Set("Content-Disposition", "attachment; filename=\""+rec.Title+"\"")
+	dispName := ""
+	if s := strings.TrimSpace(rec.Title); s != "" {
+		dispName = sanitizeHeaderFilename(s)
 	} else if rec.Meta != nil {
 		if v, ok := rec.Meta["filename"]; ok && strings.TrimSpace(v) != "" {
-			w.Header().Set("Content-Disposition", "attachment; filename=\""+v+"\"")
+			dispName = sanitizeHeaderFilename(v)
 		}
 		if v, ok := rec.Meta["mime"]; ok && strings.TrimSpace(v) != "" {
 			w.Header().Set("Content-Type", v)
 		}
 	}
+	if strings.TrimSpace(dispName) == "" {
+		dispName = rec.ID.String()
+	}
+	w.Header().Set("Content-Disposition", "attachment; filename=\""+dispName+"\"")
 
 	// Case 1: File is in S3 (New format)
 	if rec.File != nil {

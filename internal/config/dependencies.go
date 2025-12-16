@@ -146,13 +146,8 @@ func createServerImplementation(container *ApplicationContainer, tokenAuth *jwta
 			container.router.Post("/files/webhook-minio", wh.Handle)
 		}
 	}
+	deps.S3Client = s3Client
 	server := api.NewServer(deps)
-	if s3Client != nil {
-		server.SetPresignHandler(fileshandler.NewPresignHandler(s3Client))
-		server.SetDownloadHandler(fileshandler.NewDownloadHandler(deps.ItemsRepository, s3Client, provider))
-	} else {
-		server.SetDownloadHandler(fileshandler.NewDownloadHandler(deps.ItemsRepository, nil, provider))
-	}
 	return server
 }
 

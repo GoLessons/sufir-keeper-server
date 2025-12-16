@@ -13,15 +13,17 @@ import (
 	itemshandler "github.com/GoLessons/sufir-keeper-server/internal/app/handler/items"
 	"github.com/GoLessons/sufir-keeper-server/internal/crypto/keyencrypt"
 	"github.com/GoLessons/sufir-keeper-server/internal/repository"
+	"github.com/GoLessons/sufir-keeper-server/internal/s3"
 )
 
 type ServerDependencies struct {
 	DatabaseClient         interface{}
+	KEKProvider            interface{}
 	Logger                 *zap.Logger
 	TokenAuth              *jwtauth.JWTAuth
 	UsersRepository        *repository.UserRepository
 	ItemsRepository        *repository.ItemRepository
-	KEKProvider            interface{}
+	S3Client               *s3.Client
 	AccessTokenTTLSeconds  int
 	RefreshTokenTTLSeconds int
 }
@@ -52,7 +54,7 @@ func NewServer(deps ServerDependencies) *Server {
 	if p, ok := deps.KEKProvider.(keyencrypt.Provider); ok {
 		kekProvider = p
 	}
-	return &Server{
+	srv := &Server{
 		users:         users,
 		items:         items,
 		login:         authhandler.NewLoginHandler(users, deps.TokenAuth, deps.AccessTokenTTLSeconds, deps.RefreshTokenTTLSeconds),
@@ -63,21 +65,19 @@ func NewServer(deps ServerDependencies) *Server {
 		itemsList:     itemshandler.NewListHandler(items, kekProvider, deps.TokenAuth),
 		itemsGet:      itemshandler.NewGetHandler(items, kekProvider, deps.TokenAuth),
 		itemsUpdate:   itemshandler.NewUpdateHandler(items, kekProvider, deps.TokenAuth),
-		itemsDelete:   itemshandler.NewDeleteHandler(items, kekProvider, deps.TokenAuth),
-		filesDownload: nil, // set via SetDownloadHandler
-		filesPresign:  nil, // set via SetPresignHandler
+		itemsDelete:   itemshandler.NewDeleteHandler(items, kekProvider, deps.TokenAuth, deps.S3Client),
+		filesDownload: fileshandler.NewDownloadHandler(items, deps.S3Client, kekProvider),
+		filesPresign:  nil,
 		verify:        authhandler.NewVerifyHandler(),
 		kek:           kekProvider,
 	}
+	if deps.S3Client != nil {
+		srv.filesPresign = fileshandler.NewPresignHandler(deps.S3Client)
+	}
+	return srv
 }
 
-func (s *Server) SetDownloadHandler(h *fileshandler.DownloadHandler) {
-	s.filesDownload = h
-}
-
-func (s *Server) SetPresignHandler(h *fileshandler.PresignHandler) {
-	s.filesPresign = h
-}
+// Immutable server: all handlers are set during construction
 
 func (s *Server) LogoutUser(w http.ResponseWriter, r *http.Request)     { s.logout.Handle(w, r) }
 func (s *Server) RefreshToken(w http.ResponseWriter, r *http.Request)   { s.refresh.Handle(w, r) }

@@ -5,6 +5,7 @@ import (
 
 	"github.com/GoLessons/sufir-keeper-server/internal/crypto/keyencrypt"
 	"github.com/GoLessons/sufir-keeper-server/internal/repository"
+	"github.com/GoLessons/sufir-keeper-server/internal/s3"
 )
 
 type CreateHandler struct {
@@ -35,6 +36,7 @@ type DeleteHandler struct {
 	itemsRepo *repository.ItemRepository
 	kek       keyencrypt.Provider
 	tokenAuth *jwtauth.JWTAuth
+	s3client  *s3.Client
 }
 
 func NewCreateHandler(items *repository.ItemRepository, kek keyencrypt.Provider, tokenAuth *jwtauth.JWTAuth) *CreateHandler {
@@ -53,6 +55,6 @@ func NewUpdateHandler(items *repository.ItemRepository, kek keyencrypt.Provider,
 	return &UpdateHandler{itemsRepo: items, kek: kek, tokenAuth: tokenAuth}
 }
 
-func NewDeleteHandler(items *repository.ItemRepository, kek keyencrypt.Provider, tokenAuth *jwtauth.JWTAuth) *DeleteHandler {
-	return &DeleteHandler{itemsRepo: items, kek: kek, tokenAuth: tokenAuth}
+func NewDeleteHandler(items *repository.ItemRepository, kek keyencrypt.Provider, tokenAuth *jwtauth.JWTAuth, s3client *s3.Client) *DeleteHandler {
+	return &DeleteHandler{itemsRepo: items, kek: kek, tokenAuth: tokenAuth, s3client: s3client}
 }
