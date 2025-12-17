@@ -20,13 +20,13 @@ import (
 
 type WebhookHandler struct {
 	items           *repository.ItemRepository
-	s3client        *s3.Client
+	s3client        s3.Service
 	kek             keyencrypt.Provider
 	webhookSecret   string
 	protectedBucket string
 }
 
-func NewWebhookHandler(items *repository.ItemRepository, s3client *s3.Client, kek keyencrypt.Provider, secret string, protectedBucket string) *WebhookHandler {
+func NewWebhookHandler(items *repository.ItemRepository, s3client s3.Service, kek keyencrypt.Provider, secret string, protectedBucket string) *WebhookHandler {
 	return &WebhookHandler{
 		items:           items,
 		s3client:        s3client,

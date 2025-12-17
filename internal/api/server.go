@@ -21,9 +21,9 @@ type ServerDependencies struct {
 	KEKProvider            interface{}
 	Logger                 *zap.Logger
 	TokenAuth              *jwtauth.JWTAuth
-	UsersRepository        *repository.UserRepository
-	ItemsRepository        *repository.ItemRepository
-	S3Client               *s3.Client
+	UsersRepository        repository.UserStore
+	ItemsRepository        repository.ItemStore
+	S3Client               s3.Service
 	AccessTokenTTLSeconds  int
 	RefreshTokenTTLSeconds int
 }
@@ -31,8 +31,8 @@ type ServerDependencies struct {
 type Server struct {
 	Unimplemented
 	kek           keyencrypt.Provider
-	users         *repository.UserRepository
-	items         *repository.ItemRepository
+	users         repository.UserStore
+	items         repository.ItemStore
 	login         *authhandler.LoginHandler
 	refresh       *authhandler.RefreshHandler
 	register      *authhandler.RegisterHandler

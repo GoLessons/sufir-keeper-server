@@ -14,13 +14,13 @@ import (
 )
 
 type RefreshHandler struct {
-	users                  *repository.UserRepository
+	users                  repository.UserStore
 	tokenAuth              *jwtauth.JWTAuth
 	accessTokenTTLSeconds  int
 	refreshTokenTTLSeconds int
 }
 
-func NewRefreshHandler(users *repository.UserRepository, tokenAuth *jwtauth.JWTAuth, accessTokenTTLSeconds int, refreshTokenTTLSeconds int) *RefreshHandler {
+func NewRefreshHandler(users repository.UserStore, tokenAuth *jwtauth.JWTAuth, accessTokenTTLSeconds int, refreshTokenTTLSeconds int) *RefreshHandler {
 	return &RefreshHandler{users: users, tokenAuth: tokenAuth, accessTokenTTLSeconds: accessTokenTTLSeconds, refreshTokenTTLSeconds: refreshTokenTTLSeconds}
 }
 

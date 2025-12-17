@@ -15,13 +15,13 @@ import (
 )
 
 type LoginHandler struct {
-	users                  *repository.UserRepository
+	users                  repository.UserStore
 	tokenAuth              *jwtauth.JWTAuth
 	accessTokenTTLSeconds  int
 	refreshTokenTTLSeconds int
 }
 
-func NewLoginHandler(users *repository.UserRepository, tokenAuth *jwtauth.JWTAuth, accessTokenTTLSeconds int, refreshTokenTTLSeconds int) *LoginHandler {
+func NewLoginHandler(users repository.UserStore, tokenAuth *jwtauth.JWTAuth, accessTokenTTLSeconds int, refreshTokenTTLSeconds int) *LoginHandler {
 	return &LoginHandler{users: users, tokenAuth: tokenAuth, accessTokenTTLSeconds: accessTokenTTLSeconds, refreshTokenTTLSeconds: refreshTokenTTLSeconds}
 }
 

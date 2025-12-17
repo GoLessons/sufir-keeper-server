@@ -1,29 +1,23 @@
 package repository
 
 import (
-	"context"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
 
-	"github.com/GoLessons/sufir-keeper-server/internal/db"
 	"github.com/GoLessons/sufir-keeper-server/internal/model"
+	"github.com/GoLessons/sufir-keeper-server/internal/testutil"
 )
 
 func TestItemRepositoryCRUDInMemoryConfig(t *testing.T) {
 	// This test uses a live Postgres in docker compose during devcheck.
 	// Here we only construct the repository and ensure methods do not panic with minimal inputs.
-	dsn := "postgres://keeper:keeper@localhost:5432/keeper?sslmode=disable"
-	ctx := context.Background()
-	client, err := db.NewClient(ctx, dsn, db.Options{})
-	if err != nil {
-		t.Skip("postgres not available: " + err.Error())
-		return
-	}
+	client := testutil.CreateDatabaseClientForIntegrationTests(t)
 	defer func() { _ = client.Close() }()
 	repo := NewItemRepository(client)
 
+	ctx := t.Context()
 	userID := uuid.New()
 	id := uuid.New()
 	rec := model.ItemRecord{ID: id, UserID: userID, Title: "t", Type: "TEXT", DataEncrypted: []byte("x"), DataNonce: []byte("n"), DataKeyEncrypted: []byte("k"), DataKeyNonce: []byte("kn"), KEKVersion: 1, CreatedAt: time.Now().UTC(), UpdatedAt: time.Now().UTC()}

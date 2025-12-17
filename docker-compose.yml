@@ -9,6 +9,11 @@ services:
     environment:
       - GOCACHE=/workspace/.gocache
       - GOFLAGS=-buildvcs=false
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     command: bash -lc "chmod +x tools/devcheck.sh && tools/devcheck.sh"
 
   postgres:
