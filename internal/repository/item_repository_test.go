@@ -14,7 +14,7 @@ import (
 func TestItemRepositoryCRUDInMemoryConfig(t *testing.T) {
 	// This test uses a live Postgres in docker compose during devcheck.
 	// Here we only construct the repository and ensure methods do not panic with minimal inputs.
-	dsn := "postgres://keeper:keeper@localhost:5432/keeper?sslmode=disable"
+	dsn := "postgres://keeper:keeper@postgres:5432/keeper?sslmode=disable"
 	ctx := context.Background()
 	client, err := db.NewClient(ctx, dsn, db.Options{})
 	if err != nil {

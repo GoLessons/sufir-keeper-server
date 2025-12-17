@@ -16,12 +16,12 @@ import (
 )
 
 type DownloadHandler struct {
-	itemsRepo *repository.ItemRepository
-	s3client  *s3.Client
+	itemsRepo repository.ItemStore
+	s3client  s3.Service
 	kek       keyencrypt.Provider
 }
 
-func NewDownloadHandler(items *repository.ItemRepository, s3client *s3.Client, kek keyencrypt.Provider) *DownloadHandler {
+func NewDownloadHandler(items repository.ItemStore, s3client s3.Service, kek keyencrypt.Provider) *DownloadHandler {
 	return &DownloadHandler{itemsRepo: items, s3client: s3client, kek: kek}
 }
 
@@ -69,7 +69,6 @@ func (h *DownloadHandler) Handle(w http.ResponseWriter, r *http.Request, id uuid
 	}
 	w.Header().Set("Content-Disposition", "attachment; filename=\""+dispName+"\"")
 
-	// Case 1: File is in S3 (New format)
 	if rec.File != nil {
 		obj, err := h.s3client.GetObject(r.Context(), rec.File.S3Bucket, rec.File.S3Key)
 		if err != nil {
@@ -94,7 +93,6 @@ func (h *DownloadHandler) Handle(w http.ResponseWriter, r *http.Request, id uuid
 		return
 	}
 
-	// Case 2: File is in DB (Old format)
 	dataAAD := []byte(rec.UserID.String() + "|" + rec.ID.String() + "|" + rec.Type)
 	bytes, err := aead.Decrypt(dek, dataAAD, rec.DataNonce, rec.DataEncrypted)
 	if err != nil {

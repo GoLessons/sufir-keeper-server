@@ -12,10 +12,10 @@ import (
 )
 
 type PresignHandler struct {
-	s3 *s3.Client
+	s3 s3.Service
 }
 
-func NewPresignHandler(s3c *s3.Client) *PresignHandler {
+func NewPresignHandler(s3c s3.Service) *PresignHandler {
 	return &PresignHandler{s3: s3c}
 }
 

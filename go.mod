@@ -10,6 +10,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/hashicorp/vault/api v1.14.0
 	github.com/jackc/pgx/v5 v5.7.5
+	github.com/lestrrat-go/jwx/v2 v2.1.3
 	github.com/minio/minio-go/v7 v7.0.67
 	github.com/minio/sio v0.4.3
 	github.com/oapi-codegen/runtime v1.1.2
@@ -48,7 +49,6 @@ require (
 	github.com/lestrrat-go/httpcc v1.0.1 // indirect
 	github.com/lestrrat-go/httprc v1.0.6 // indirect
 	github.com/lestrrat-go/iter v1.0.2 // indirect
-	github.com/lestrrat-go/jwx/v2 v2.1.3 // indirect
 	github.com/lestrrat-go/option v1.0.1 // indirect
 	github.com/minio/md5-simd v1.1.2 // indirect
 	github.com/minio/sha256-simd v1.0.1 // indirect

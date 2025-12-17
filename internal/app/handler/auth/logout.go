@@ -12,11 +12,11 @@ import (
 )
 
 type LogoutHandler struct {
-	users     *repository.UserRepository
+	users     repository.UserStore
 	tokenAuth *jwtauth.JWTAuth
 }
 
-func NewLogoutHandler(users *repository.UserRepository, tokenAuth *jwtauth.JWTAuth) *LogoutHandler {
+func NewLogoutHandler(users repository.UserStore, tokenAuth *jwtauth.JWTAuth) *LogoutHandler {
 	return &LogoutHandler{users: users, tokenAuth: tokenAuth}
 }
 

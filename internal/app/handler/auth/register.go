@@ -14,9 +14,9 @@ import (
 	"github.com/GoLessons/sufir-keeper-server/internal/repository"
 )
 
-type RegisterHandler struct{ users *repository.UserRepository }
+type RegisterHandler struct{ users repository.UserStore }
 
-func NewRegisterHandler(users *repository.UserRepository) *RegisterHandler {
+func NewRegisterHandler(users repository.UserStore) *RegisterHandler {
 	return &RegisterHandler{users: users}
 }
 
