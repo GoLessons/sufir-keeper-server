@@ -10,7 +10,7 @@ jobs:
   tests:
     name: Run tests
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     permissions:
       contents: read
       pages: write
@@ -31,19 +31,22 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
-
-      - name: Download modules
-        run: go mod download
-
-      - name: Run tests (-race)
+      - name: Build and start database (docker compose)
         run: |
           set -e
-          go test -race -count=0 ./...
-
-      - name: Generate coverage
+          docker compose -f docker-compose.yml up -d postgres migrate
+      - name: Run tests inside devcheck (docker compose)
         run: |
           set -e
-          go test ./... -covermode=atomic -coverprofile=coverage.out
+          docker compose -f docker-compose.yml up devcheck
+      - name: Collect coverage from devcheck
+        run: |
+          set -e
+          if [ ! -f "var/coverage.out" ]; then
+            echo "var/coverage.out not found" >&2
+            exit 1
+          fi
+          cp var/coverage.out coverage.out
 
       - name: Compute coverage value
         id: cov
