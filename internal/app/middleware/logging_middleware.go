@@ -11,6 +11,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/GoLessons/sufir-keeper-server/internal/api"
+	"github.com/GoLessons/sufir-keeper-server/internal/app/httputil"
 )
 
 const maxLogBodyBytes = 16 * 1024
@@ -294,7 +295,7 @@ func isBinaryContentType(contentType string) bool {
 	if strings.HasPrefix(ct, "image/") || strings.HasPrefix(ct, "audio/") || strings.HasPrefix(ct, "video/") {
 		return true
 	}
-	if strings.Contains(ct, "application/octet-stream") || strings.Contains(ct, "application/zip") || strings.Contains(ct, "application/pdf") {
+	if strings.Contains(ct, httputil.ContentTypeOctetStream) || strings.Contains(ct, "application/zip") || strings.Contains(ct, "application/pdf") {
 		return true
 	}
 	return false

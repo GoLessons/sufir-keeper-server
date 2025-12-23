@@ -5,22 +5,37 @@ import (
 	"testing"
 )
 
-func TestStaticProvider(t *testing.T) {
+func TestStaticProviderAllMethods(t *testing.T) {
 	key := make([]byte, 32)
-	p := NewStaticProvider(key, 1)
-	if p == nil {
-		t.Fatalf("provider nil")
+	for i := range key {
+		key[i] = byte(i)
 	}
-	k, v, err := p.GetCurrent(context.Background())
-	if err != nil || v != 1 || len(k) != 32 {
-		t.Fatalf("GetCurrent unexpected: %v %d %d", err, v, len(k))
+	p := NewStaticProvider(key, 3)
+	curKey, curVer, err := p.GetCurrent(context.Background())
+	if err != nil {
+		t.Fatalf("GetCurrent error: %v", err)
 	}
-	k2, err := p.GetByVersion(context.Background(), 1)
-	if err != nil || len(k2) != 32 {
-		t.Fatalf("GetByVersion unexpected: %v %d", err, len(k2))
+	if curVer != 3 {
+		t.Fatalf("unexpected version: %d", curVer)
 	}
-	k3, v3, err := p.Rotate(context.Background())
-	if err != nil || v3 != 1 || len(k3) != 32 {
-		t.Fatalf("Rotate unexpected: %v %d %d", err, v3, len(k3))
+	if len(curKey) != 32 {
+		t.Fatalf("unexpected key size: %d", len(curKey))
+	}
+	key2, err := p.GetByVersion(context.Background(), 2)
+	if err != nil {
+		t.Fatalf("GetByVersion error: %v", err)
+	}
+	if len(key2) != 32 {
+		t.Fatalf("unexpected key size get by version: %d", len(key2))
+	}
+	key3, ver3, err := p.Rotate(context.Background())
+	if err != nil {
+		t.Fatalf("Rotate error: %v", err)
+	}
+	if ver3 != 3 {
+		t.Fatalf("unexpected rotate version: %d", ver3)
+	}
+	if len(key3) != 32 {
+		t.Fatalf("unexpected rotate key size: %d", len(key3))
 	}
 }

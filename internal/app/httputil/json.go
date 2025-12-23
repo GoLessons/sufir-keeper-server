@@ -7,6 +7,8 @@ import (
 	model "github.com/GoLessons/sufir-keeper-server/internal/api/types"
 )
 
+const ContentTypeOctetStream = "application/octet-stream"
+
 func DecodeJSON(r *http.Request, dst interface{}) error {
 	decoder := json.NewDecoder(r.Body)
 	decoder.DisallowUnknownFields()

@@ -2,6 +2,7 @@ package api
 
 import (
 	"net/http"
+	"reflect"
 
 	"github.com/go-chi/jwtauth/v5"
 	"github.com/google/uuid"
@@ -54,6 +55,13 @@ func NewServer(deps ServerDependencies) *Server {
 	if p, ok := deps.KEKProvider.(keyencrypt.Provider); ok {
 		kekProvider = p
 	}
+	var usableS3 s3.Service
+	if deps.S3Client != nil {
+		v := reflect.ValueOf(deps.S3Client)
+		if v.Kind() != reflect.Ptr || !v.IsNil() {
+			usableS3 = deps.S3Client
+		}
+	}
 	srv := &Server{
 		users:         users,
 		items:         items,
@@ -65,7 +73,7 @@ func NewServer(deps ServerDependencies) *Server {
 		itemsList:     itemshandler.NewListHandler(items, kekProvider, deps.TokenAuth),
 		itemsGet:      nil,
 		itemsUpdate:   nil,
-		itemsDelete:   itemshandler.NewDeleteHandler(items, kekProvider, deps.TokenAuth, deps.S3Client),
+		itemsDelete:   itemshandler.NewDeleteHandler(items, kekProvider, deps.TokenAuth, usableS3),
 		filesDownload: nil,
 		filesPresign:  nil,
 		verify:        authhandler.NewVerifyHandler(),
@@ -75,10 +83,10 @@ func NewServer(deps ServerDependencies) *Server {
 		srv.itemsCreate = itemshandler.NewCreateHandler(items, kekProvider, deps.TokenAuth)
 		srv.itemsGet = itemshandler.NewGetHandler(items, kekProvider, deps.TokenAuth)
 		srv.itemsUpdate = itemshandler.NewUpdateHandler(items, kekProvider, deps.TokenAuth)
-		srv.filesDownload = fileshandler.NewDownloadHandler(items, deps.S3Client, kekProvider)
+		srv.filesDownload = fileshandler.NewDownloadHandler(items, usableS3, kekProvider)
 	}
-	if deps.S3Client != nil {
-		srv.filesPresign = fileshandler.NewPresignHandler(deps.S3Client)
+	if usableS3 != nil {
+		srv.filesPresign = fileshandler.NewPresignHandler(usableS3)
 	}
 	return srv
 }

@@ -1,6 +1,7 @@
 package testutil
 
 import (
+	"bytes"
 	"context"
 	"io"
 	"time"
@@ -20,18 +21,33 @@ type S3ServiceStubPresignCall struct {
 	Size        int64
 }
 
+type S3ServiceStubPutCall struct {
+	Metadata    map[string]string
+	Bucket      string
+	Key         string
+	ContentType string
+	Size        int64
+}
+
 type S3ServiceStub struct {
+	PutError       error
 	RemovedRecords []S3ServiceStubRemovedRecord
 	PresignedCalls []S3ServiceStubPresignCall
+	GetObjectData  []byte
+	PutCalls       []S3ServiceStubPutCall
+	StatSize       int64
 }
 
 func (s *S3ServiceStub) EnsureBucket(_ context.Context, _ string) error { return nil }
-func (s *S3ServiceStub) GetObject(_ context.Context, _ string, _ string) (*minio.Object, error) {
+func (s *S3ServiceStub) GetObject(_ context.Context, _ string, _ string) (io.ReadCloser, error) {
+	if len(s.GetObjectData) > 0 {
+		return io.NopCloser(bytes.NewReader(s.GetObjectData)), nil
+	}
 	return nil, io.EOF
 }
 
 func (s *S3ServiceStub) StatObject(_ context.Context, _ string, _ string) (minio.ObjectInfo, error) {
-	return minio.ObjectInfo{}, nil
+	return minio.ObjectInfo{Size: s.StatSize}, nil
 }
 
 func (s *S3ServiceStub) RemoveObject(_ context.Context, bucketName string, key string) error {
@@ -39,7 +55,17 @@ func (s *S3ServiceStub) RemoveObject(_ context.Context, bucketName string, key s
 	return nil
 }
 
-func (s *S3ServiceStub) PutObject(_ context.Context, _ string, _ string, _ io.Reader, _ int64, _ string, _ map[string]string) (minio.UploadInfo, error) {
+func (s *S3ServiceStub) PutObject(_ context.Context, bucketName string, key string, _ io.Reader, size int64, contentType string, metadata map[string]string) (minio.UploadInfo, error) {
+	s.PutCalls = append(s.PutCalls, S3ServiceStubPutCall{
+		Bucket:      bucketName,
+		Key:         key,
+		Size:        size,
+		ContentType: contentType,
+		Metadata:    metadata,
+	})
+	if s.PutError != nil {
+		return minio.UploadInfo{}, s.PutError
+	}
 	return minio.UploadInfo{}, nil
 }
 func (s *S3ServiceStub) SetBucketWebhookCreatedEvents(_ context.Context) error { return nil }

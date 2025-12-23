@@ -96,7 +96,7 @@ func (h *WebhookHandler) Handle(w http.ResponseWriter, r *http.Request) {
 			_ = h.s3client.RemoveObject(r.Context(), "", key)
 			continue
 		}
-		stat, err := obj.Stat()
+		stat, err := h.s3client.StatObject(r.Context(), "", key)
 		if err != nil {
 			_ = obj.Close()
 			_ = h.s3client.RemoveObject(r.Context(), "", key)
@@ -142,7 +142,7 @@ func (h *WebhookHandler) Handle(w http.ResponseWriter, r *http.Request) {
 
 		// Upload to protected bucket
 		// We use the same key but in a different bucket
-		_, err = h.s3client.PutObject(r.Context(), h.protectedBucket, key, encReader, int64(encryptedSize), "application/octet-stream", nil)
+		_, err = h.s3client.PutObject(r.Context(), h.protectedBucket, key, encReader, int64(encryptedSize), httputil.ContentTypeOctetStream, nil)
 		_ = obj.Close() // Close source object stream
 		if err != nil {
 			// Failed to upload encrypted file, clean up

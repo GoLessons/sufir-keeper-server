@@ -1,6 +1,7 @@
 package files
 
 import (
+	"bytes"
 	"crypto/rand"
 	"encoding/json"
 	"net/http"
@@ -9,6 +10,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/minio/sio"
 	"github.com/stretchr/testify/require"
 
 	"github.com/GoLessons/sufir-keeper-server/internal/auth"
@@ -115,6 +117,82 @@ func TestDownloadHandlerBinaryInlineIntegration(t *testing.T) {
 	req := createAuthorizedRequest(http.MethodGet, "/files/"+itemIdentifier.String(), userIdentifier, nil)
 	handler.Handle(rec, req, itemIdentifier)
 	require.Equal(t, http.StatusOK, rec.Code)
-	require.Equal(t, "application/octet-stream", rec.Header().Get("Content-Type"))
+	require.Equal(t, octetStream, rec.Header().Get("Content-Type"))
+	require.Equal(t, plaintext, rec.Body.Bytes())
+}
+
+func TestDownloadHandlerStreamingDecryptionIntegration(t *testing.T) {
+	dbClient := createDatabaseClientForFilesIntegration(t)
+	defer func() { _ = dbClient.Close() }()
+
+	itemRepository := repository.NewItemRepository(dbClient)
+	userRepository := repository.NewUserRepository(dbClient)
+	keyProvider := keyencrypt.NewStaticProvider(make([]byte, 32), 4)
+	fakeS3 := &FilesIntegrationFakeS3{}
+	handler := NewDownloadHandler(itemRepository, fakeS3, keyProvider)
+
+	userIdentifier := uuid.New()
+	passwordHash, err := auth.HashPassword("StrongPassword123!")
+	require.NoError(t, err)
+	uniqueLogin := "files_stream_user_" + uuid.New().String()
+	userModel := model.NewUser(userIdentifier, uniqueLogin, passwordHash, time.Now().UTC())
+	_, err = userRepository.Save(t.Context(), userModel)
+	require.NoError(t, err)
+
+	itemIdentifier := uuid.New()
+	plaintext := bytes.Repeat([]byte("stream-"), 2000)
+	dataEncryptionKey := make([]byte, 32)
+	_, err = rand.Read(dataEncryptionKey)
+	require.NoError(t, err)
+	keyEncryptionKey, kekVersion, err := keyProvider.GetCurrent(t.Context())
+	require.NoError(t, err)
+	keyAAD := []byte(userIdentifier.String() + "|" + itemIdentifier.String())
+	dataKeyNonce, encryptedDataKey, err := aead.Encrypt(keyEncryptionKey, keyAAD, dataEncryptionKey)
+	require.NoError(t, err)
+
+	record := model.ItemRecord{
+		ID:               itemIdentifier,
+		UserID:           userIdentifier,
+		Title:            "binary-stream",
+		Type:             "BINARY",
+		DataKeyEncrypted: encryptedDataKey,
+		DataKeyNonce:     dataKeyNonce,
+		KEKVersion:       kekVersion,
+		File: &model.ItemFile{
+			S3Bucket: "protected",
+			S3Key:    "objects/" + itemIdentifier.String(),
+			Size:     int64(len(plaintext)),
+			SHA256:   "",
+		},
+		CreatedAt: time.Now().UTC(),
+		UpdatedAt: time.Now().UTC(),
+	}
+	_, err = itemRepository.Create(t.Context(), record)
+	require.NoError(t, err)
+
+	encReader, err := sio.EncryptReader(bytes.NewReader(plaintext), sio.Config{
+		Key:          dataEncryptionKey,
+		MinVersion:   sio.Version20,
+		CipherSuites: []byte{sio.AES_256_GCM},
+	})
+	require.NoError(t, err)
+	encryptedBytes := make([]byte, 0, len(plaintext)+1024)
+	buf := make([]byte, 4096)
+	for {
+		n, er := encReader.Read(buf)
+		if n > 0 {
+			encryptedBytes = append(encryptedBytes, buf[:n]...)
+		}
+		if er != nil {
+			break
+		}
+	}
+	fakeS3.GetObjectData = encryptedBytes
+
+	rec := httptest.NewRecorder()
+	req := createAuthorizedRequest(http.MethodGet, "/files/"+itemIdentifier.String(), userIdentifier, nil)
+	handler.Handle(rec, req, itemIdentifier)
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Equal(t, octetStream, rec.Header().Get("Content-Type"))
 	require.Equal(t, plaintext, rec.Body.Bytes())
 }

@@ -21,3 +21,11 @@ func TestVerifyHandlerIntegration(t *testing.T) {
 	require.Equal(t, http.StatusNoContent, rr.Code)
 	require.Equal(t, userID.String(), rr.Header().Get("X-User-Id"))
 }
+
+func TestVerifyHandlerUnauthorized(t *testing.T) {
+	handler := NewVerifyHandler()
+	req := httptest.NewRequest(http.MethodPost, "/auth-verify", nil)
+	rr := httptest.NewRecorder()
+	handler.Handle(rr, req)
+	require.Equal(t, http.StatusUnauthorized, rr.Code)
+}

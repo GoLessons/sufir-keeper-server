@@ -1,8 +1,10 @@
 package items
 
 import (
-	"encoding/json"
+	"context"
+	"database/sql"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -10,131 +12,182 @@ import (
 
 	"github.com/go-chi/jwtauth/v5"
 	"github.com/google/uuid"
-	"github.com/lestrrat-go/jwx/v2/jwt"
+	"github.com/minio/minio-go/v7"
 
-	apitypes "github.com/GoLessons/sufir-keeper-server/internal/api/types"
+	"github.com/GoLessons/sufir-keeper-server/internal/crypto/keyencrypt"
+	"github.com/GoLessons/sufir-keeper-server/internal/db"
 	"github.com/GoLessons/sufir-keeper-server/internal/model"
+	"github.com/GoLessons/sufir-keeper-server/internal/repository"
+	"github.com/GoLessons/sufir-keeper-server/internal/testutil"
 )
 
-type testTx struct{ committed, rolledBack bool }
-
-func (t *testTx) Commit() error   { t.committed = true; return nil }
-func (t *testTx) Rollback() error { t.rolledBack = true; return nil }
-
-type testItemsRepo struct {
-	beginErr   error
-	getErr     error
-	deleteErr  error
-	txCaptured *testTx
-	record     model.ItemRecord
+type DeleteItemsStoreStub struct {
+	repository.ItemStore
+	GetWithTxError  error
+	DeleteError     error
+	GetWithTxRecord model.ItemRecord
 }
 
-func (r *testItemsRepo) BeginTx(_ interface{}) (*testTx, error) {
-	if r.beginErr != nil {
-		return nil, r.beginErr
+func (s *DeleteItemsStoreStub) BeginTx(ctx context.Context) (*sql.Tx, error) {
+	client, err := db.NewClient(ctx, testutil.DefaultIntegrationPostgresDataSourceName, db.Options{})
+	if err != nil {
+		return nil, err
 	}
-	r.txCaptured = &testTx{}
-	return r.txCaptured, nil
+	return client.SQL.BeginTx(ctx, &sql.TxOptions{})
 }
 
-func (r *testItemsRepo) GetWithTx(_ interface{}, _ *testTx, _ uuid.UUID, _ uuid.UUID) (model.ItemRecord, error) {
-	if r.getErr != nil {
-		return model.ItemRecord{}, r.getErr
+func (s *DeleteItemsStoreStub) GetWithTx(ctx context.Context, tx *sql.Tx, userID uuid.UUID, id uuid.UUID) (model.ItemRecord, error) {
+	if s.GetWithTxError != nil {
+		return model.ItemRecord{}, s.GetWithTxError
 	}
-	return r.record, nil
+	return s.GetWithTxRecord, nil
 }
 
-func (r *testItemsRepo) DeleteWithTx(_ interface{}, _ *testTx, _ uuid.UUID, _ uuid.UUID) error {
-	if r.deleteErr != nil {
-		return r.deleteErr
-	}
-	return nil
+func (s *DeleteItemsStoreStub) DeleteWithTx(ctx context.Context, tx *sql.Tx, userID uuid.UUID, id uuid.UUID) error {
+	return s.DeleteError
 }
 
-type testS3 struct{ removeErr error }
+type ErrorS3ServiceStub struct{}
 
-func (s *testS3) RemoveObject(_ interface{}, _ string, _ string) error { return s.removeErr }
-
-func withAccessToken(req *http.Request, sub uuid.UUID) *http.Request {
-	t := jwt.New()
-	_ = t.Set("sub", sub.String())
-	_ = t.Set("typ", "access")
-	return req.WithContext(jwtauth.NewContext(req.Context(), t, nil))
+func (e *ErrorS3ServiceStub) EnsureBucket(_ context.Context, _ string) error { return nil }
+func (e *ErrorS3ServiceStub) GetObject(_ context.Context, _ string, _ string) (io.ReadCloser, error) {
+	return nil, errors.New("not implemented")
 }
 
-func TestDeleteHandler_Unauthorized(t *testing.T) {
-	h := &DeleteHandler{}
+func (e *ErrorS3ServiceStub) StatObject(_ context.Context, _ string, _ string) (minio.ObjectInfo, error) {
+	return minio.ObjectInfo{}, nil
+}
+
+func (e *ErrorS3ServiceStub) RemoveObject(_ context.Context, _ string, _ string) error {
+	return errors.New("remove error")
+}
+
+func (e *ErrorS3ServiceStub) PutObject(_ context.Context, _ string, _ string, _ io.Reader, _ int64, _ string, _ map[string]string) (minio.UploadInfo, error) {
+	return minio.UploadInfo{}, nil
+}
+func (e *ErrorS3ServiceStub) SetBucketWebhookCreatedEvents(_ context.Context) error { return nil }
+func (e *ErrorS3ServiceStub) PresignPost(_ context.Context, _ string, _ string, _ int64, _ map[string]string, _ time.Duration) (string, map[string]string, error) {
+	return "", nil, nil
+}
+
+func TestDeleteHandlerUnauthorized(t *testing.T) {
+	itemsRepo := &DeleteItemsStoreStub{}
+	handler := NewDeleteHandler(itemsRepo, keyencrypt.NewStaticProvider(make([]byte, 32), 1), jwtauth.New("HS256", []byte("secret"), nil), nil)
+	req := httptest.NewRequest(http.MethodDelete, "/items/"+uuid.New().String(), nil)
 	rr := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodDelete, "/items/1", nil)
-	h.Handle(rr, req, uuid.New())
+	handler.Handle(rr, req, uuid.New())
 	if rr.Code != http.StatusUnauthorized {
 		t.Fatalf("expected 401, got %d", rr.Code)
 	}
-	var e apitypes.Error
-	_ = json.Unmarshal(rr.Body.Bytes(), &e)
-	if e.Error == nil || *e.Error != "unauthorized" {
-		t.Fatalf("unexpected error code: %v", e.Error)
-	}
 }
 
-func TestDeleteHandler_NotFound(t *testing.T) {
-	repo := &testItemsRepo{getErr: errors.New("missing")}
+func TestDeleteHandlerNotFound(t *testing.T) {
+	userID := uuid.New()
+	itemID := uuid.New()
+	itemsRepo := &DeleteItemsStoreStub{GetWithTxError: errors.New("not found")}
+	handler := NewDeleteHandler(itemsRepo, keyencrypt.NewStaticProvider(make([]byte, 32), 1), jwtauth.New("HS256", []byte("secret"), nil), nil)
+	req := testutil.AuthorizedJSONRequest(http.MethodDelete, "/items/"+itemID.String(), userID, nil)
 	rr := httptest.NewRecorder()
-	r := withAccessToken(httptest.NewRequest(http.MethodDelete, "/items/x", nil), uuid.New())
-	id := uuid.New()
-	tx := &testTx{}
-	repo.txCaptured = tx
-	// Simulate Handle using test repo
-	w := rr
-	uid, _ := userIDFromRequest(r)
-	if uid == uuid.Nil {
-		t.Fatalf("user id missing in test setup")
-	}
-	_, _ = repo.BeginTx(nil)
-	_, err := repo.GetWithTx(nil, tx, uid, id)
-	if err == nil {
-		t.Fatalf("expected get error")
-	}
-	w.WriteHeader(http.StatusNotFound)
+	handler.Handle(rr, req, itemID)
 	if rr.Code != http.StatusNotFound {
 		t.Fatalf("expected 404, got %d", rr.Code)
 	}
 }
 
-func TestDeleteHandler_StorageError(t *testing.T) {
+func TestDeleteHandlerStorageError(t *testing.T) {
 	userID := uuid.New()
-	id := uuid.New()
-	rec := model.ItemRecord{ID: id, UserID: userID, Title: "t", CreatedAt: time.Now().UTC(), UpdatedAt: time.Now().UTC(), File: &model.ItemFile{S3Bucket: "b", S3Key: "k", Size: 1}}
-	repo := &testItemsRepo{record: rec}
-	s3c := &testS3{removeErr: errors.New("s3")}
-	rr := httptest.NewRecorder()
-	_ = withAccessToken(httptest.NewRequest(http.MethodDelete, "/items/x", nil), userID)
-	_, _ = repo.BeginTx(nil)
-	_, _ = repo.GetWithTx(nil, repo.txCaptured, userID, id)
-	err := s3c.RemoveObject(nil, rec.File.S3Bucket, rec.File.S3Key)
-	if err == nil {
-		t.Fatalf("expected s3 remove error")
+	itemID := uuid.New()
+	itemsRepo := &DeleteItemsStoreStub{
+		GetWithTxRecord: model.ItemRecord{ID: itemID, UserID: userID, File: &model.ItemFile{S3Bucket: "bucket", S3Key: "key", Size: 1}},
 	}
-	rr.WriteHeader(http.StatusInternalServerError)
+	s3client := &s3ServiceErrorAdapter{ErrorS3ServiceStub{}}
+	handler := NewDeleteHandler(itemsRepo, keyencrypt.NewStaticProvider(make([]byte, 32), 1), jwtauth.New("HS256", []byte("secret"), nil), s3client)
+	req := testutil.AuthorizedJSONRequest(http.MethodDelete, "/items/"+itemID.String(), userID, nil)
+	rr := httptest.NewRecorder()
+	handler.Handle(rr, req, itemID)
 	if rr.Code != http.StatusInternalServerError {
 		t.Fatalf("expected 500, got %d", rr.Code)
 	}
 }
 
-func TestDeleteHandler_Success(t *testing.T) {
+func TestDeleteHandlerSuccess(t *testing.T) {
 	userID := uuid.New()
-	id := uuid.New()
-	rec := model.ItemRecord{ID: id, UserID: userID, Title: "t", CreatedAt: time.Now().UTC(), UpdatedAt: time.Now().UTC()}
-	repo := &testItemsRepo{record: rec}
-	rr := httptest.NewRecorder()
-	_ = withAccessToken(httptest.NewRequest(http.MethodDelete, "/items/x", nil), userID)
-	_, _ = repo.BeginTx(nil)
-	_, _ = repo.GetWithTx(nil, repo.txCaptured, userID, id)
-	if err := repo.DeleteWithTx(nil, repo.txCaptured, userID, id); err != nil {
-		t.Fatalf("unexpected delete error: %v", err)
+	itemID := uuid.New()
+	itemsRepo := &DeleteItemsStoreStub{
+		GetWithTxRecord: model.ItemRecord{ID: itemID, UserID: userID, File: nil},
 	}
-	rr.WriteHeader(http.StatusNoContent)
+	s3client := &s3ServiceNoopAdapter{}
+	handler := NewDeleteHandler(itemsRepo, keyencrypt.NewStaticProvider(make([]byte, 32), 1), jwtauth.New("HS256", []byte("secret"), nil), s3client)
+	req := testutil.AuthorizedJSONRequest(http.MethodDelete, "/items/"+itemID.String(), userID, nil)
+	rr := httptest.NewRecorder()
+	handler.Handle(rr, req, itemID)
 	if rr.Code != http.StatusNoContent {
 		t.Fatalf("expected 204, got %d", rr.Code)
 	}
+}
+
+func TestDeleteHandlerNotFoundOnDelete(t *testing.T) {
+	userID := uuid.New()
+	itemID := uuid.New()
+	itemsRepo := &DeleteItemsStoreStub{
+		GetWithTxRecord: model.ItemRecord{ID: itemID, UserID: userID, File: nil},
+		DeleteError:     sql.ErrNoRows,
+	}
+	s3client := &s3ServiceNoopAdapter{}
+	handler := NewDeleteHandler(itemsRepo, keyencrypt.NewStaticProvider(make([]byte, 32), 1), jwtauth.New("HS256", []byte("secret"), nil), s3client)
+	req := testutil.AuthorizedJSONRequest(http.MethodDelete, "/items/"+itemID.String(), userID, nil)
+	rr := httptest.NewRecorder()
+	handler.Handle(rr, req, itemID)
+	if rr.Code != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d", rr.Code)
+	}
+}
+
+type s3ServiceErrorAdapter struct{ ErrorS3ServiceStub }
+
+func (a *s3ServiceErrorAdapter) EnsureBucket(ctx context.Context, bucketName string) error {
+	return nil
+}
+
+func (a *s3ServiceErrorAdapter) GetObject(ctx context.Context, bucketName string, key string) (io.ReadCloser, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (a *s3ServiceErrorAdapter) StatObject(ctx context.Context, bucketName string, key string) (minio.ObjectInfo, error) {
+	return minio.ObjectInfo{}, nil
+}
+
+func (a *s3ServiceErrorAdapter) RemoveObject(ctx context.Context, bucketName string, key string) error {
+	return errors.New("remove error")
+}
+
+func (a *s3ServiceErrorAdapter) PutObject(ctx context.Context, bucketName string, key string, reader io.Reader, size int64, contentType string, metadata map[string]string) (minio.UploadInfo, error) {
+	return minio.UploadInfo{}, nil
+}
+func (a *s3ServiceErrorAdapter) SetBucketWebhookCreatedEvents(ctx context.Context) error { return nil }
+func (a *s3ServiceErrorAdapter) PresignPost(ctx context.Context, key string, contentType string, size int64, metadata map[string]string, expires time.Duration) (string, map[string]string, error) {
+	return "", nil, nil
+}
+
+type s3ServiceNoopAdapter struct{}
+
+func (a *s3ServiceNoopAdapter) EnsureBucket(ctx context.Context, bucketName string) error { return nil }
+func (a *s3ServiceNoopAdapter) GetObject(ctx context.Context, bucketName string, key string) (io.ReadCloser, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (a *s3ServiceNoopAdapter) StatObject(ctx context.Context, bucketName string, key string) (minio.ObjectInfo, error) {
+	return minio.ObjectInfo{}, nil
+}
+
+func (a *s3ServiceNoopAdapter) RemoveObject(ctx context.Context, bucketName string, key string) error {
+	return nil
+}
+
+func (a *s3ServiceNoopAdapter) PutObject(ctx context.Context, bucketName string, key string, reader io.Reader, size int64, contentType string, metadata map[string]string) (minio.UploadInfo, error) {
+	return minio.UploadInfo{}, nil
+}
+func (a *s3ServiceNoopAdapter) SetBucketWebhookCreatedEvents(ctx context.Context) error { return nil }
+func (a *s3ServiceNoopAdapter) PresignPost(ctx context.Context, key string, contentType string, size int64, metadata map[string]string, expires time.Duration) (string, map[string]string, error) {
+	return "", nil, nil
 }
