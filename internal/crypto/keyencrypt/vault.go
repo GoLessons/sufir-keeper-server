@@ -43,6 +43,17 @@ func NewVaultProvider(addr string, token string, kvPath string, masterKeyHex str
 	return &VaultProvider{client: c, kvPath: kvPath, masterKey: mk}, nil
 }
 
+func NewVaultProviderWithClient(client *api.Client, kvPath string, masterKeyHex string) (*VaultProvider, error) {
+	mk, err := hex.DecodeString(masterKeyHex)
+	if err != nil {
+		return nil, err
+	}
+	if len(mk) != 32 {
+		return nil, errors.New("master key must be 32 bytes (HEX)")
+	}
+	return &VaultProvider{client: client, kvPath: kvPath, masterKey: mk}, nil
+}
+
 func (p *VaultProvider) read(ctx context.Context) (map[string]interface{}, error) {
 	secret, err := p.client.KVv2("secret").Get(ctx, p.kvPath)
 	if err != nil {
@@ -210,8 +221,19 @@ func (p *VaultProvider) Rotate(ctx context.Context) ([]byte, int, error) {
 		return nil, 0, err
 	}
 	cur := 0
-	if v, ok := data["current"].(float64); ok {
+	switch v := data["current"].(type) {
+	case int:
+		cur = v
+	case float64:
 		cur = int(v)
+	case json.Number:
+		if n, e := v.Int64(); e == nil {
+			cur = int(n)
+		}
+	case string:
+		if n, e := strconv.Atoi(v); e == nil {
+			cur = n
+		}
 	}
 	next := cur + 1
 	kek := make([]byte, 32)

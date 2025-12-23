@@ -49,3 +49,49 @@ func TestLoginHandlerIntegration(t *testing.T) {
 	require.NotEmpty(t, resp.TokenType)
 	require.NotEmpty(t, resp.ExpiresIn)
 }
+
+func TestLoginHandlerInvalidJSON(t *testing.T) {
+	databaseClient := testutil.CreateDatabaseClientForIntegrationTests(t)
+	defer func() { _ = databaseClient.Close() }()
+	usersRepository := repository.NewUserRepository(databaseClient)
+	tokenAuth := jwtauth.New("HS256", []byte("integration-secret"), nil)
+	handler := NewLoginHandler(usersRepository, tokenAuth, 3600, 2592000)
+	httpRecorder := httptest.NewRecorder()
+	httpRequest := httptest.NewRequest(http.MethodPost, "/auth", bytes.NewReader([]byte(`{`)))
+	httpRequest.Header.Set("Content-Type", "application/json")
+	handler.Handle(httpRecorder, httpRequest)
+	require.Equal(t, http.StatusBadRequest, httpRecorder.Code)
+}
+
+func TestLoginHandlerUnknownLogin(t *testing.T) {
+	databaseClient := testutil.CreateDatabaseClientForIntegrationTests(t)
+	defer func() { _ = databaseClient.Close() }()
+	usersRepository := repository.NewUserRepository(databaseClient)
+	tokenAuth := jwtauth.New("HS256", []byte("integration-secret"), nil)
+	handler := NewLoginHandler(usersRepository, tokenAuth, 3600, 2592000)
+	requestBody := map[string]string{"login": "unknown_login_" + uuid.New().String(), "password": "StrongPassword123!"}
+	requestBytes, _ := json.Marshal(requestBody)
+	httpRecorder := httptest.NewRecorder()
+	httpRequest := httptest.NewRequest(http.MethodPost, "/auth", bytes.NewReader(requestBytes))
+	httpRequest.Header.Set("Content-Type", "application/json")
+	handler.Handle(httpRecorder, httpRequest)
+	require.Equal(t, http.StatusUnauthorized, httpRecorder.Code)
+}
+
+func TestLoginHandlerWrongPassword(t *testing.T) {
+	databaseClient := testutil.CreateDatabaseClientForIntegrationTests(t)
+	defer func() { _ = databaseClient.Close() }()
+	usersRepository := repository.NewUserRepository(databaseClient)
+	tokenAuth := jwtauth.New("HS256", []byte("integration-secret"), nil)
+	handler := NewLoginHandler(usersRepository, tokenAuth, 3600, 2592000)
+	login := "wrong_password_user_" + uuid.New().String()
+	_, err := usersRepository.Save(t.Context(), model.NewUser(uuid.New(), login, "hashed", time.Now().UTC()))
+	require.NoError(t, err)
+	requestBody := map[string]string{"login": login, "password": "invalid"}
+	requestBytes, _ := json.Marshal(requestBody)
+	httpRecorder := httptest.NewRecorder()
+	httpRequest := httptest.NewRequest(http.MethodPost, "/auth", bytes.NewReader(requestBytes))
+	httpRequest.Header.Set("Content-Type", "application/json")
+	handler.Handle(httpRecorder, httpRequest)
+	require.Equal(t, http.StatusUnauthorized, httpRecorder.Code)
+}

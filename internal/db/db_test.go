@@ -5,6 +5,8 @@ import (
 	"database/sql"
 	"testing"
 	"time"
+
+	"github.com/Masterminds/squirrel"
 )
 
 func TestClientClose_NilSafe(t *testing.T) {
@@ -34,5 +36,18 @@ func TestNewClient_InvalidDSN(t *testing.T) {
 	_, err := NewClient(ctx, "invalid-dsn", Options{MaxOpenConns: 1, MaxIdleConns: 1, ConnMaxLifetime: time.Second, ConnMaxIdleTime: time.Second})
 	if err == nil {
 		t.Fatalf("expected error for invalid dsn")
+	}
+}
+
+func TestNewClient_ValidDSNAndOptions(t *testing.T) {
+	ctx := context.Background()
+	dsn := "postgres://keeper:keeper@postgres:5432/keeper?sslmode=disable"
+	client, err := NewClient(ctx, dsn, Options{MaxOpenConns: 2, MaxIdleConns: 2, ConnMaxLifetime: time.Second, ConnMaxIdleTime: time.Second})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	defer func() { _ = client.Close() }()
+	if client.Builder == (squirrel.StatementBuilderType{}) {
+		t.Fatalf("builder not initialized")
 	}
 }

@@ -60,7 +60,7 @@ func (c *Client) EnsureBucket(ctx context.Context, bucketName string) error {
 	return nil
 }
 
-func (c *Client) GetObject(ctx context.Context, bucketName string, key string) (*minio.Object, error) {
+func (c *Client) GetObject(ctx context.Context, bucketName string, key string) (io.ReadCloser, error) {
 	if bucketName == "" {
 		bucketName = c.bucket
 	}

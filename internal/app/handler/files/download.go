@@ -36,7 +36,7 @@ func (h *DownloadHandler) Handle(w http.ResponseWriter, r *http.Request, id uuid
 		httputil.WriteError(w, http.StatusNotFound, "not_found", "File not found")
 		return
 	}
-	if strings.ToUpper(strings.TrimSpace(rec.Type)) != "BINARY" {
+	if !strings.EqualFold(strings.TrimSpace(rec.Type), "BINARY") {
 		httputil.WriteError(w, http.StatusForbidden, "forbidden", "Access denied")
 		return
 	}
@@ -52,18 +52,21 @@ func (h *DownloadHandler) Handle(w http.ResponseWriter, r *http.Request, id uuid
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/octet-stream")
+	contentType := httputil.ContentTypeOctetStream
 	dispName := ""
-	if s := strings.TrimSpace(rec.Title); s != "" {
-		dispName = sanitizeHeaderFilename(s)
-	} else if rec.Meta != nil {
+	title := strings.TrimSpace(rec.Title)
+	if title != "" {
+		dispName = sanitizeHeaderFilename(title)
+	}
+	if rec.Meta != nil {
 		if v, ok := rec.Meta["filename"]; ok && strings.TrimSpace(v) != "" {
 			dispName = sanitizeHeaderFilename(v)
 		}
 		if v, ok := rec.Meta["mime"]; ok && strings.TrimSpace(v) != "" {
-			w.Header().Set("Content-Type", v)
+			contentType = v
 		}
 	}
+	w.Header().Set("Content-Type", contentType)
 	if strings.TrimSpace(dispName) == "" {
 		dispName = rec.ID.String()
 	}

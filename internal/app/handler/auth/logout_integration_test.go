@@ -38,3 +38,14 @@ func TestLogoutHandlerIntegration(t *testing.T) {
 	require.NoError(t, err)
 	require.Greater(t, newVersion, oldVersion)
 }
+
+func TestLogoutHandlerUnauthorized(t *testing.T) {
+	databaseClient := testutil.CreateDatabaseClientForIntegrationTests(t)
+	defer func() { _ = databaseClient.Close() }()
+	usersRepository := repository.NewUserRepository(databaseClient)
+	handler := NewLogoutHandler(usersRepository, nil)
+	req := httptest.NewRequest(http.MethodDelete, "/auth", nil)
+	rr := httptest.NewRecorder()
+	handler.Handle(rr, req)
+	require.Equal(t, http.StatusUnauthorized, rr.Code)
+}
