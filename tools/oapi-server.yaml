@@ -1,0 +1,13 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/oapi-codegen/oapi-codegen/HEAD/configuration-schema.json
+package: api
+generate:
+  chi-server: true
+  models: false
+output: ../../internal/api/generated.go
+import-mapping:
+  ../../docs/schema.yaml: github.com/GoLessons/sufir-keeper-server/internal/api/types
+output-options:
+  user-templates:
+    chi/chi-middleware.tmpl: ../../tools/oapi-templates/chi-middleware.tmpl
+    chi/chi-handler.tmpl: ../../tools/oapi-templates/chi-handler.tmpl
+    chi/chi-interface.tmpl: ../../tools/oapi-templates/chi-interface.tmpl

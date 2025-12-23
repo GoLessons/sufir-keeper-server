@@ -6,621 +6,13 @@ package api
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
-	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/oapi-codegen/runtime"
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
-
-const (
-	BearerAuthScopes = "bearerAuth.Scopes"
-)
-
-// Defines values for BinaryDataType.
-const (
-	BinaryDataTypeBINARY BinaryDataType = "BINARY"
-)
-
-// Defines values for CardDataType.
-const (
-	CARD CardDataType = "CARD"
-)
-
-// Defines values for CredentialDataType.
-const (
-	CREDENTIAL CredentialDataType = "CREDENTIAL"
-)
-
-// Defines values for ItemType.
-const (
-	ItemTypeBINARY     ItemType = "BINARY"
-	ItemTypeCARD       ItemType = "CARD"
-	ItemTypeCREDENTIAL ItemType = "CREDENTIAL"
-	ItemTypeTEXT       ItemType = "TEXT"
-)
-
-// Defines values for TextDataType.
-const (
-	TEXT TextDataType = "TEXT"
-)
-
-// AuthResponse defines model for AuthResponse.
-type AuthResponse struct {
-	// AccessToken JWT access token (короткоживущий)
-	AccessToken *string `json:"access_token,omitempty"`
-
-	// ExpiresIn Время жизни access токена в секундах
-	ExpiresIn *int `json:"expires_in,omitempty"`
-
-	// RefreshToken Refresh token (долгоживущий)
-	RefreshToken *string `json:"refresh_token,omitempty"`
-	TokenType    *string `json:"token_type,omitempty"`
-}
-
-// BinaryData defines model for BinaryData.
-type BinaryData struct {
-	Filename string             `json:"filename"`
-	Id       openapi_types.UUID `json:"id"`
-
-	// Type Тип варианта данных для дискриминатора
-	Type BinaryDataType `json:"type"`
-}
-
-// BinaryDataType Тип варианта данных для дискриминатора
-type BinaryDataType string
-
-// CardData defines model for CardData.
-type CardData struct {
-	CardHolder string `json:"card_holder"`
-	CardNumber string `json:"card_number"`
-	Cvv        string `json:"cvv"`
-
-	// ExpiryDate Формат MM/YY
-	ExpiryDate string `json:"expiry_date"`
-
-	// Type Тип варианта данных для дискриминатора
-	Type CardDataType `json:"type"`
-}
-
-// CardDataType Тип варианта данных для дискриминатора
-type CardDataType string
-
-// CredentialData defines model for CredentialData.
-type CredentialData struct {
-	Login    string `json:"login"`
-	Password string `json:"password"`
-
-	// Type Тип варианта данных для дискриминатора
-	Type CredentialDataType `json:"type"`
-}
-
-// CredentialDataType Тип варианта данных для дискриминатора
-type CredentialDataType string
-
-// Error defines model for Error.
-type Error struct {
-	// Code HTTP код ошибки
-	Code *int `json:"code,omitempty"`
-
-	// Error Тип ошибки
-	Error *string `json:"error,omitempty"`
-
-	// Message Сообщение об ошибке
-	Message *string `json:"message,omitempty"`
-}
-
-// ItemCreate defines model for ItemCreate.
-type ItemCreate struct {
-	Data ItemCreate_Data `json:"data"`
-
-	// Meta Произвольные метаданные в формате ключ-значение (только строки)
-	Meta  *map[string]string `json:"meta,omitempty"`
-	Title string             `json:"title"`
-}
-
-// ItemCreate_Data defines model for ItemCreate.Data.
-type ItemCreate_Data struct {
-	union json.RawMessage
-}
-
-// ItemListResponse defines model for ItemListResponse.
-type ItemListResponse struct {
-	CreatedAt *time.Time          `json:"created_at,omitempty"`
-	Id        *openapi_types.UUID `json:"id,omitempty"`
-	Meta      *map[string]string  `json:"meta,omitempty"`
-	Title     *string             `json:"title,omitempty"`
-	UpdatedAt *time.Time          `json:"updated_at,omitempty"`
-}
-
-// ItemResponse defines model for ItemResponse.
-type ItemResponse struct {
-	CreatedAt *time.Time          `json:"created_at,omitempty"`
-	Data      *ItemResponse_Data  `json:"data,omitempty"`
-	Id        *openapi_types.UUID `json:"id,omitempty"`
-	Meta      *map[string]string  `json:"meta,omitempty"`
-	Title     *string             `json:"title,omitempty"`
-	UpdatedAt *time.Time          `json:"updated_at,omitempty"`
-
-	// UserId ID владельца записи (для внутреннего использования)
-	UserId *openapi_types.UUID `json:"user_id,omitempty"`
-}
-
-// ItemResponse_Data defines model for ItemResponse.Data.
-type ItemResponse_Data struct {
-	union json.RawMessage
-}
-
-// ItemType Тип хранимой записи
-type ItemType string
-
-// ItemUpdate defines model for ItemUpdate.
-type ItemUpdate struct {
-	Data  *ItemUpdate_Data   `json:"data,omitempty"`
-	Meta  *map[string]string `json:"meta,omitempty"`
-	Title *string            `json:"title,omitempty"`
-}
-
-// ItemUpdate_Data defines model for ItemUpdate.Data.
-type ItemUpdate_Data struct {
-	union json.RawMessage
-}
-
-// TextData defines model for TextData.
-type TextData struct {
-	// Type Тип варианта данных для дискриминатора
-	Type  TextDataType `json:"type"`
-	Value string       `json:"value"`
-}
-
-// TextDataType Тип варианта данных для дискриминатора
-type TextDataType string
-
-// UserLogin defines model for UserLogin.
-type UserLogin struct {
-	Login    string `json:"login"`
-	Password string `json:"password"`
-}
-
-// UserRegister defines model for UserRegister.
-type UserRegister struct {
-	Login    string `json:"login"`
-	Password string `json:"password"`
-}
-
-// UnauthorizedError defines model for UnauthorizedError.
-type UnauthorizedError = Error
-
-// RefreshTokenJSONBody defines parameters for RefreshToken.
-type RefreshTokenJSONBody struct {
-	// RefreshToken Refresh token
-	RefreshToken string `json:"refresh_token"`
-}
-
-// UploadFileMultipartBody defines parameters for UploadFile.
-type UploadFileMultipartBody struct {
-	// File Файл для загрузки
-	File openapi_types.File `json:"file"`
-}
-
-// UploadFileParams defines parameters for UploadFile.
-type UploadFileParams struct {
-	// XFileID ID файла, сгенерированный клиентом
-	XFileID openapi_types.UUID `json:"X-File-ID"`
-}
-
-// GetItemsParams defines parameters for GetItems.
-type GetItemsParams struct {
-	// Type Фильтрация по типу записи
-	Type *ItemType `form:"type,omitempty" json:"type,omitempty"`
-
-	// S Поиск по наименованию
-	S *string `form:"s,omitempty" json:"s,omitempty"`
-
-	// Limit Количество записей (пагинация)
-	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
-
-	// Offset Смещение (пагинация)
-	Offset *int `form:"offset,omitempty" json:"offset,omitempty"`
-}
-
-// RefreshTokenJSONRequestBody defines body for RefreshToken for application/json ContentType.
-type RefreshTokenJSONRequestBody RefreshTokenJSONBody
-
-// LoginUserJSONRequestBody defines body for LoginUser for application/json ContentType.
-type LoginUserJSONRequestBody = UserLogin
-
-// UploadFileMultipartRequestBody defines body for UploadFile for multipart/form-data ContentType.
-type UploadFileMultipartRequestBody UploadFileMultipartBody
-
-// CreateItemJSONRequestBody defines body for CreateItem for application/json ContentType.
-type CreateItemJSONRequestBody = ItemCreate
-
-// UpdateItemJSONRequestBody defines body for UpdateItem for application/json ContentType.
-type UpdateItemJSONRequestBody = ItemUpdate
-
-// RegisterUserJSONRequestBody defines body for RegisterUser for application/json ContentType.
-type RegisterUserJSONRequestBody = UserRegister
-
-// AsCredentialData returns the union data inside the ItemCreate_Data as a CredentialData
-func (t ItemCreate_Data) AsCredentialData() (CredentialData, error) {
-	var body CredentialData
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromCredentialData overwrites any union data inside the ItemCreate_Data as the provided CredentialData
-func (t *ItemCreate_Data) FromCredentialData(v CredentialData) error {
-	v.Type = "CREDENTIAL"
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergeCredentialData performs a merge with any union data inside the ItemCreate_Data, using the provided CredentialData
-func (t *ItemCreate_Data) MergeCredentialData(v CredentialData) error {
-	v.Type = "CREDENTIAL"
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-// AsCardData returns the union data inside the ItemCreate_Data as a CardData
-func (t ItemCreate_Data) AsCardData() (CardData, error) {
-	var body CardData
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromCardData overwrites any union data inside the ItemCreate_Data as the provided CardData
-func (t *ItemCreate_Data) FromCardData(v CardData) error {
-	v.Type = "CARD"
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergeCardData performs a merge with any union data inside the ItemCreate_Data, using the provided CardData
-func (t *ItemCreate_Data) MergeCardData(v CardData) error {
-	v.Type = "CARD"
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-// AsTextData returns the union data inside the ItemCreate_Data as a TextData
-func (t ItemCreate_Data) AsTextData() (TextData, error) {
-	var body TextData
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromTextData overwrites any union data inside the ItemCreate_Data as the provided TextData
-func (t *ItemCreate_Data) FromTextData(v TextData) error {
-	v.Type = "TEXT"
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergeTextData performs a merge with any union data inside the ItemCreate_Data, using the provided TextData
-func (t *ItemCreate_Data) MergeTextData(v TextData) error {
-	v.Type = "TEXT"
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-// AsBinaryData returns the union data inside the ItemCreate_Data as a BinaryData
-func (t ItemCreate_Data) AsBinaryData() (BinaryData, error) {
-	var body BinaryData
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromBinaryData overwrites any union data inside the ItemCreate_Data as the provided BinaryData
-func (t *ItemCreate_Data) FromBinaryData(v BinaryData) error {
-	v.Type = "BINARY"
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergeBinaryData performs a merge with any union data inside the ItemCreate_Data, using the provided BinaryData
-func (t *ItemCreate_Data) MergeBinaryData(v BinaryData) error {
-	v.Type = "BINARY"
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-func (t ItemCreate_Data) Discriminator() (string, error) {
-	var discriminator struct {
-		Discriminator string `json:"type"`
-	}
-	err := json.Unmarshal(t.union, &discriminator)
-	return discriminator.Discriminator, err
-}
-
-func (t ItemCreate_Data) ValueByDiscriminator() (interface{}, error) {
-	discriminator, err := t.Discriminator()
-	if err != nil {
-		return nil, err
-	}
-	switch discriminator {
-	case "BINARY":
-		return t.AsBinaryData()
-	case "CARD":
-		return t.AsCardData()
-	case "CREDENTIAL":
-		return t.AsCredentialData()
-	case "TEXT":
-		return t.AsTextData()
-	default:
-		return nil, errors.New("unknown discriminator value: " + discriminator)
-	}
-}
-
-func (t ItemCreate_Data) MarshalJSON() ([]byte, error) {
-	b, err := t.union.MarshalJSON()
-	return b, err
-}
-
-func (t *ItemCreate_Data) UnmarshalJSON(b []byte) error {
-	err := t.union.UnmarshalJSON(b)
-	return err
-}
-
-// AsCredentialData returns the union data inside the ItemResponse_Data as a CredentialData
-func (t ItemResponse_Data) AsCredentialData() (CredentialData, error) {
-	var body CredentialData
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromCredentialData overwrites any union data inside the ItemResponse_Data as the provided CredentialData
-func (t *ItemResponse_Data) FromCredentialData(v CredentialData) error {
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergeCredentialData performs a merge with any union data inside the ItemResponse_Data, using the provided CredentialData
-func (t *ItemResponse_Data) MergeCredentialData(v CredentialData) error {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-// AsCardData returns the union data inside the ItemResponse_Data as a CardData
-func (t ItemResponse_Data) AsCardData() (CardData, error) {
-	var body CardData
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromCardData overwrites any union data inside the ItemResponse_Data as the provided CardData
-func (t *ItemResponse_Data) FromCardData(v CardData) error {
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergeCardData performs a merge with any union data inside the ItemResponse_Data, using the provided CardData
-func (t *ItemResponse_Data) MergeCardData(v CardData) error {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-// AsTextData returns the union data inside the ItemResponse_Data as a TextData
-func (t ItemResponse_Data) AsTextData() (TextData, error) {
-	var body TextData
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromTextData overwrites any union data inside the ItemResponse_Data as the provided TextData
-func (t *ItemResponse_Data) FromTextData(v TextData) error {
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergeTextData performs a merge with any union data inside the ItemResponse_Data, using the provided TextData
-func (t *ItemResponse_Data) MergeTextData(v TextData) error {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-// AsBinaryData returns the union data inside the ItemResponse_Data as a BinaryData
-func (t ItemResponse_Data) AsBinaryData() (BinaryData, error) {
-	var body BinaryData
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromBinaryData overwrites any union data inside the ItemResponse_Data as the provided BinaryData
-func (t *ItemResponse_Data) FromBinaryData(v BinaryData) error {
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergeBinaryData performs a merge with any union data inside the ItemResponse_Data, using the provided BinaryData
-func (t *ItemResponse_Data) MergeBinaryData(v BinaryData) error {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-func (t ItemResponse_Data) MarshalJSON() ([]byte, error) {
-	b, err := t.union.MarshalJSON()
-	return b, err
-}
-
-func (t *ItemResponse_Data) UnmarshalJSON(b []byte) error {
-	err := t.union.UnmarshalJSON(b)
-	return err
-}
-
-// AsCredentialData returns the union data inside the ItemUpdate_Data as a CredentialData
-func (t ItemUpdate_Data) AsCredentialData() (CredentialData, error) {
-	var body CredentialData
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromCredentialData overwrites any union data inside the ItemUpdate_Data as the provided CredentialData
-func (t *ItemUpdate_Data) FromCredentialData(v CredentialData) error {
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergeCredentialData performs a merge with any union data inside the ItemUpdate_Data, using the provided CredentialData
-func (t *ItemUpdate_Data) MergeCredentialData(v CredentialData) error {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-// AsCardData returns the union data inside the ItemUpdate_Data as a CardData
-func (t ItemUpdate_Data) AsCardData() (CardData, error) {
-	var body CardData
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromCardData overwrites any union data inside the ItemUpdate_Data as the provided CardData
-func (t *ItemUpdate_Data) FromCardData(v CardData) error {
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergeCardData performs a merge with any union data inside the ItemUpdate_Data, using the provided CardData
-func (t *ItemUpdate_Data) MergeCardData(v CardData) error {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-// AsTextData returns the union data inside the ItemUpdate_Data as a TextData
-func (t ItemUpdate_Data) AsTextData() (TextData, error) {
-	var body TextData
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromTextData overwrites any union data inside the ItemUpdate_Data as the provided TextData
-func (t *ItemUpdate_Data) FromTextData(v TextData) error {
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergeTextData performs a merge with any union data inside the ItemUpdate_Data, using the provided TextData
-func (t *ItemUpdate_Data) MergeTextData(v TextData) error {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-// AsBinaryData returns the union data inside the ItemUpdate_Data as a BinaryData
-func (t ItemUpdate_Data) AsBinaryData() (BinaryData, error) {
-	var body BinaryData
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromBinaryData overwrites any union data inside the ItemUpdate_Data as the provided BinaryData
-func (t *ItemUpdate_Data) FromBinaryData(v BinaryData) error {
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergeBinaryData performs a merge with any union data inside the ItemUpdate_Data, using the provided BinaryData
-func (t *ItemUpdate_Data) MergeBinaryData(v BinaryData) error {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-func (t ItemUpdate_Data) MarshalJSON() ([]byte, error) {
-	b, err := t.union.MarshalJSON()
-	return b, err
-}
-
-func (t *ItemUpdate_Data) UnmarshalJSON(b []byte) error {
-	err := t.union.UnmarshalJSON(b)
-	return err
-}
 
 type ServerInterface interface {
 	LogoutUser(w http.ResponseWriter, r *http.Request)
@@ -629,7 +21,13 @@ type ServerInterface interface {
 
 	LoginUser(w http.ResponseWriter, r *http.Request)
 
+	AuthVerifyGet(w http.ResponseWriter, r *http.Request)
+
+	AuthVerifyPost(w http.ResponseWriter, r *http.Request)
+
 	UploadFile(w http.ResponseWriter, r *http.Request, params UploadFileParams)
+
+	PresignFile(w http.ResponseWriter, r *http.Request)
 
 	DownloadFile(w http.ResponseWriter, r *http.Request, fileId openapi_types.UUID)
 
@@ -660,7 +58,19 @@ func (Unimplemented) LoginUser(w http.ResponseWriter, r *http.Request) {
 	http.Error(w, "not implemented", http.StatusNotImplemented)
 }
 
+func (Unimplemented) AuthVerifyGet(w http.ResponseWriter, r *http.Request) {
+	http.Error(w, "not implemented", http.StatusNotImplemented)
+}
+
+func (Unimplemented) AuthVerifyPost(w http.ResponseWriter, r *http.Request) {
+	http.Error(w, "not implemented", http.StatusNotImplemented)
+}
+
 func (Unimplemented) UploadFile(w http.ResponseWriter, r *http.Request, params UploadFileParams) {
+	http.Error(w, "not implemented", http.StatusNotImplemented)
+}
+
+func (Unimplemented) PresignFile(w http.ResponseWriter, r *http.Request) {
 	http.Error(w, "not implemented", http.StatusNotImplemented)
 }
 
@@ -749,6 +159,46 @@ func (siw *ServerInterfaceWrapper) LoginUser(w http.ResponseWriter, r *http.Requ
 	handler.ServeHTTP(w, r)
 }
 
+// AuthVerifyGet operation middleware
+func (siw *ServerInterfaceWrapper) AuthVerifyGet(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.AuthVerifyGet(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// AuthVerifyPost operation middleware
+func (siw *ServerInterfaceWrapper) AuthVerifyPost(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.AuthVerifyPost(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // UploadFile operation middleware
 func (siw *ServerInterfaceWrapper) UploadFile(w http.ResponseWriter, r *http.Request) {
 
@@ -790,6 +240,26 @@ func (siw *ServerInterfaceWrapper) UploadFile(w http.ResponseWriter, r *http.Req
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.UploadFile(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PresignFile operation middleware
+func (siw *ServerInterfaceWrapper) PresignFile(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PresignFile(w, r)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -1123,7 +593,7 @@ func Handler(si ServerInterface, options ChiServerOptions) http.Handler {
 			}
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(status)
-			_ = json.NewEncoder(w).Encode(Error{Code: &status, Error: &code, Message: &message})
+			_ = json.NewEncoder(w).Encode(map[string]any{"code": status, "error": code, "message": message})
 		}
 	}
 	wrapper := ServerInterfaceWrapper{
@@ -1151,10 +621,28 @@ func Handler(si ServerInterface, options ChiServerOptions) http.Handler {
 		r.Post(options.BaseURL+"/auth", wrapper.LoginUser)
 	})
 	r.Group(func(r chi.Router) {
+		if middlewares, ok := options.Middlewares["GET /auth-verify"]; ok && len(middlewares) > 0 {
+			r.Use(middlewares...)
+		}
+		r.Get(options.BaseURL+"/auth-verify", wrapper.AuthVerifyGet)
+	})
+	r.Group(func(r chi.Router) {
+		if middlewares, ok := options.Middlewares["POST /auth-verify"]; ok && len(middlewares) > 0 {
+			r.Use(middlewares...)
+		}
+		r.Post(options.BaseURL+"/auth-verify", wrapper.AuthVerifyPost)
+	})
+	r.Group(func(r chi.Router) {
 		if middlewares, ok := options.Middlewares["POST /files"]; ok && len(middlewares) > 0 {
 			r.Use(middlewares...)
 		}
 		r.Post(options.BaseURL+"/files", wrapper.UploadFile)
+	})
+	r.Group(func(r chi.Router) {
+		if middlewares, ok := options.Middlewares["POST /files/presign"]; ok && len(middlewares) > 0 {
+			r.Use(middlewares...)
+		}
+		r.Post(options.BaseURL+"/files/presign", wrapper.PresignFile)
 	})
 	r.Group(func(r chi.Router) {
 		if middlewares, ok := options.Middlewares["GET /files/{fileId}"]; ok && len(middlewares) > 0 {

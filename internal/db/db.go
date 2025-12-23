@@ -52,9 +52,14 @@ func NewClient(parentContext context.Context, dataSourceName string, options Opt
 	return &Client{SQL: sqlDatabase, Builder: builder}, nil
 }
 
-func (client *Client) Close() error {
+func (client *Client) Close() (err error) {
 	if client == nil || client.SQL == nil {
 		return nil
 	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = nil
+		}
+	}()
 	return client.SQL.Close()
 }

@@ -1,0 +1,69 @@
+name: Migrations check
+
+on:
+  push:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  workflow_dispatch:
+
+jobs:
+  migrations:
+    name: Validate migrations (up/down)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    concurrency:
+      group: migrations-${{ github.ref }}
+      cancel-in-progress: true
+    env:
+      POSTGRES_USER: keeper
+      POSTGRES_PASSWORD: keeper
+      POSTGRES_DB: keeper
+      DB_DSN: postgres://keeper:keeper@localhost:5432/keeper?sslmode=disable
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Build Postgres image (repo Dockerfile)
+        run: |
+          docker build -t local/keeper-postgres -f .docker/postgres/Dockerfile .
+
+      - name: Run Postgres container
+        run: |
+          docker rm -f ci-postgres >/dev/null 2>&1 || true
+          docker run -d --name ci-postgres \
+            -e POSTGRES_USER="$POSTGRES_USER" \
+            -e POSTGRES_PASSWORD="$POSTGRES_PASSWORD" \
+            -e POSTGRES_DB="$POSTGRES_DB" \
+            -p 5432:5432 local/keeper-postgres
+
+      - name: Wait for Postgres readiness
+        run: |
+          for i in {1..30}; do
+            if docker exec ci-postgres pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB" >/dev/null 2>&1; then
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Postgres не поднялся вовремя" >&2
+          docker logs ci-postgres || true
+          exit 1
+
+      - name: Migrate up
+        run: |
+          docker run --rm --network host -v "$PWD/migrations:/migrations:ro" migrate/migrate:v4.17.0 \
+            -path=/migrations -database "$DB_DSN" up
+
+      - name: Migrate down
+        run: |
+          docker run --rm --network host -v "$PWD/migrations:/migrations:ro" migrate/migrate:v4.17.0 \
+            -path=/migrations -database "$DB_DSN" down -all
+
+      - name: Cleanup
+        if: always()
+        run: |
+          docker rm -f ci-postgres >/dev/null 2>&1 || true

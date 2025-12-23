@@ -1,4 +1,4 @@
-package api
+package middleware
 
 import (
 	"bytes"
@@ -9,13 +9,21 @@ import (
 	"time"
 
 	"go.uber.org/zap"
+
+	"github.com/GoLessons/sufir-keeper-server/internal/api"
+	"github.com/GoLessons/sufir-keeper-server/internal/app/httputil"
 )
 
 const maxLogBodyBytes = 16 * 1024
 
 var (
-	sensitiveHeaderKeys = []string{"authorization", "cookie", "set-cookie", "x-api-key"}
-	sensitiveJSONKeys   = map[string]struct{}{
+	sensitiveHeaderKeys = map[string]struct{}{
+		"authorization": {},
+		"cookie":        {},
+		"set-cookie":    {},
+		"x-api-key":     {},
+	}
+	sensitiveJSONKeys = map[string]struct{}{
 		"password":      {},
 		"card_number":   {},
 		"cvv":           {},
@@ -25,6 +33,20 @@ var (
 		"secret":        {},
 	}
 )
+
+func init() {
+	normalizedJSON := make(map[string]struct{}, len(sensitiveJSONKeys))
+	for k := range sensitiveJSONKeys {
+		normalizedJSON[strings.ToLower(k)] = struct{}{}
+	}
+	sensitiveJSONKeys = normalizedJSON
+
+	normalizedHeaders := make(map[string]struct{}, len(sensitiveHeaderKeys))
+	for k := range sensitiveHeaderKeys {
+		normalizedHeaders[strings.ToLower(k)] = struct{}{}
+	}
+	sensitiveHeaderKeys = normalizedHeaders
+}
 
 const (
 	logLevelDebug = "debug"
@@ -109,7 +131,7 @@ func (s *responseRecorder) Write(b []byte) (int, error) {
 	return n, err
 }
 
-func LoggingMiddleware(logger *zap.Logger, levels HTTPLogLevels) MiddlewareFunc {
+func LoggingMiddleware(logger *zap.Logger, levels HTTPLogLevels) api.MiddlewareFunc {
 	if strings.TrimSpace(levels.Success) == "" || strings.TrimSpace(levels.ClientError) == "" || strings.TrimSpace(levels.ServerError) == "" {
 		d := defaultHTTPLogLevels()
 		if strings.TrimSpace(levels.Success) == "" {
@@ -242,10 +264,10 @@ func maskHeaders(headers http.Header) map[string][]string {
 	result := make(map[string][]string, len(headers))
 	for key, values := range headers {
 		lowerKey := strings.ToLower(key)
-		if containsSensitiveHeader(lowerKey) {
+		if _, ok := sensitiveHeaderKeys[lowerKey]; ok {
 			maskedValues := make([]string, len(values))
 			for i := range values {
-				maskedValues[i] = maskString(values[i])
+				maskedValues[i] = "***"
 			}
 			result[key] = maskedValues
 		} else {
@@ -255,25 +277,6 @@ func maskHeaders(headers http.Header) map[string][]string {
 		}
 	}
 	return result
-}
-
-func containsSensitiveHeader(key string) bool {
-	for _, s := range sensitiveHeaderKeys {
-		if key == s {
-			return true
-		}
-	}
-	return false
-}
-
-func maskString(value string) string {
-	if value == "" {
-		return ""
-	}
-	if len(value) <= 4 {
-		return "****"
-	}
-	return value[:2] + strings.Repeat("*", len(value)-4) + value[len(value)-2:]
 }
 
 func isTextContentType(contentType string) bool {
@@ -292,7 +295,7 @@ func isBinaryContentType(contentType string) bool {
 	if strings.HasPrefix(ct, "image/") || strings.HasPrefix(ct, "audio/") || strings.HasPrefix(ct, "video/") {
 		return true
 	}
-	if strings.Contains(ct, "application/octet-stream") || strings.Contains(ct, "application/zip") || strings.Contains(ct, "application/pdf") {
+	if strings.Contains(ct, httputil.ContentTypeOctetStream) || strings.Contains(ct, "application/zip") || strings.Contains(ct, "application/pdf") {
 		return true
 	}
 	return false
@@ -330,7 +333,7 @@ func maskJSONValue(v interface{}) interface{} {
 		res := make(map[string]interface{}, len(t))
 		for k, val := range t {
 			if _, ok := sensitiveJSONKeys[strings.ToLower(k)]; ok {
-				res[k] = maskJSONScalar(val)
+				res[k] = "***"
 			} else {
 				res[k] = maskJSONValue(val)
 			}
@@ -344,14 +347,5 @@ func maskJSONValue(v interface{}) interface{} {
 		return res
 	default:
 		return t
-	}
-}
-
-func maskJSONScalar(v interface{}) interface{} {
-	switch s := v.(type) {
-	case string:
-		return maskString(s)
-	default:
-		return v
 	}
 }

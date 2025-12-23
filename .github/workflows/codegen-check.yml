@@ -18,7 +18,7 @@ jobs:
         uses: docker/setup-buildx-action@v3
       - name: Run code generation in Docker
         run: |
-          docker run --rm -v "$PWD:/app" -w /app golang:1.25.4 sh -c "go mod download && go generate ./cmd/server"
+          docker run --rm -v "$PWD:/app" -w /app/cmd/server golang:1.25.4 sh -c "go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v2.5.1 && go generate ./"
       - name: Check for drift
         run: |
           git status --porcelain

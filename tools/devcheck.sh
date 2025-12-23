@@ -22,7 +22,11 @@ go vet ./...
 golangci-lint run --config tools/.golangci-lint.yml --timeout 3m --fix ./...
 golangci-lint run --config tools/.golangci-lint.yml --timeout 3m ./...
 
-go test ./... -covermode=atomic -coverprofile=coverage.out
-go tool cover -func=coverage.out | tail -n 1
+packages_for_testing=$(go list ./... | grep -Ev '(^|/)internal/testutil($|/)')
+go test ${packages_for_testing} -covermode=atomic -coverprofile=var/coverage.out
+go tool cover -func=var/coverage.out | tail -n 1
 
-go test -race -count=0 ./...
+go test -race -count=0 ${packages_for_testing}
+
+# Проверка, что сборка приложения проходит успешно
+go build -v ./cmd/server

@@ -1,11 +1,7 @@
 # yaml-language-server: $schema=https://raw.githubusercontent.com/oapi-codegen/oapi-codegen/HEAD/configuration-schema.json
-package: api
+package: apitypes
 generate:
-  chi-server: true
   models: true
-output: ../../internal/api/generated.go
+output: ../../internal/api/types/generated_types.go
 output-options:
-  user-templates:
-    chi/chi-middleware.tmpl: ../../tools/oapi-templates/chi-middleware.tmpl
-    chi/chi-handler.tmpl: ../../tools/oapi-templates/chi-handler.tmpl
-    chi/chi-interface.tmpl: ../../tools/oapi-templates/chi-interface.tmpl
+  skip-prune: true

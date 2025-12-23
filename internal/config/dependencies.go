@@ -8,10 +8,16 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/jwtauth/v5"
 	"go.uber.org/zap"
 
 	"github.com/GoLessons/sufir-keeper-server/internal/api"
+	fileshandler "github.com/GoLessons/sufir-keeper-server/internal/app/handler/files"
+	"github.com/GoLessons/sufir-keeper-server/internal/app/middleware"
+	"github.com/GoLessons/sufir-keeper-server/internal/crypto/keyencrypt"
 	"github.com/GoLessons/sufir-keeper-server/internal/db"
+	"github.com/GoLessons/sufir-keeper-server/internal/repository"
+	"github.com/GoLessons/sufir-keeper-server/internal/s3"
 )
 
 func createApplicationLogger() (*zap.Logger, error) {
@@ -67,15 +73,121 @@ func createHTTPServerAndRouter(configuration AppConfig) (*chi.Mux, *http.Server)
 	return router, httpServer
 }
 
-func createChiServerOptions(router *chi.Mux, logger *zap.Logger, configuration AppConfig) api.ChiServerOptions {
-	return api.ChiServerOptions{
-		BaseURL:          "",
-		BaseRouter:       router,
-		Middlewares:      map[string][]api.MiddlewareFunc{"common": {api.RecoverMiddleware(), api.ContentTypeValidationMiddleware(), api.LoggingMiddleware(logger, api.HTTPLogLevels{Success: strings.TrimSpace(configuration.Log.LevelSuccess), ClientError: strings.TrimSpace(configuration.Log.LevelClientError), ServerError: strings.TrimSpace(configuration.Log.LevelServerError)})}},
-		ErrorHandlerFunc: api.DefaultErrorHandler,
+func createChiServerOptions(router *chi.Mux, logger *zap.Logger, configuration AppConfig, tokenAuth *jwtauth.JWTAuth) api.ChiServerOptions {
+	common := []api.MiddlewareFunc{
+		middleware.RecoverMiddleware(),
+		middleware.LoggingMiddleware(logger, middleware.HTTPLogLevels{Success: strings.TrimSpace(configuration.Log.LevelSuccess), ClientError: strings.TrimSpace(configuration.Log.LevelClientError), ServerError: strings.TrimSpace(configuration.Log.LevelServerError)}),
 	}
+	protected := middleware.AuthRequiredMiddleware(tokenAuth)
+	jsonOnly := middleware.RequireJSONMiddleware()
+	multipartOnly := middleware.RequireMultipartFormDataMiddleware()
+	middlewares := map[string][]api.MiddlewareFunc{
+		"common":              common,
+		"DELETE /auth":        {protected},
+		"POST /auth":          {jsonOnly},
+		"PATCH /auth":         {jsonOnly},
+		"POST /register":      {jsonOnly},
+		"POST /items":         {protected, jsonOnly},
+		"PUT /items/{id}":     {protected, jsonOnly},
+		"GET /items":          {protected, jsonOnly},
+		"GET /items/{id}":     {protected, jsonOnly},
+		"DELETE /items/{id}":  {protected},
+		"POST /files":         {multipartOnly},
+		"POST /files/presign": {protected, jsonOnly},
+		"GET /files/{fileId}": {protected},
+		"GET /auth-verify":    {protected},
+		"POST /auth-verify":   {protected},
+	}
+	return api.ChiServerOptions{BaseURL: "", BaseRouter: router, Middlewares: middlewares, ErrorHandlerFunc: api.DefaultErrorHandler}
 }
 
-func createServerImplementation(_ *ApplicationContainer) api.ServerInterface {
-	return api.Unimplemented{}
+func createServerImplementation(container *ApplicationContainer, tokenAuth *jwtauth.JWTAuth) api.ServerInterface {
+	deps := api.ServerDependencies{
+		Logger:                 container.logger,
+		DatabaseClient:         container.databaseClient,
+		TokenAuth:              tokenAuth,
+		AccessTokenTTLSeconds:  container.configuration.Auth.AccessTokenTTLSeconds,
+		RefreshTokenTTLSeconds: container.configuration.Auth.RefreshTokenTTLSeconds,
+		UsersRepository:        repository.NewUserRepository(container.databaseClient),
+		ItemsRepository:        repository.NewItemRepository(container.databaseClient),
+	}
+	var provider keyencrypt.Provider
+	cryptoCfg := container.configuration.Crypto
+	if strings.TrimSpace(cryptoCfg.VaultAddr) != "" && strings.TrimSpace(cryptoCfg.VaultToken) != "" && strings.TrimSpace(cryptoCfg.VaultKVPath) != "" && strings.TrimSpace(cryptoCfg.MasterKeyHex) != "" {
+		vp, err := keyencrypt.NewVaultProvider(strings.TrimSpace(cryptoCfg.VaultAddr), strings.TrimSpace(cryptoCfg.VaultToken), strings.TrimSpace(cryptoCfg.VaultKVPath), strings.TrimSpace(cryptoCfg.MasterKeyHex))
+		if err == nil {
+			provider = vp
+		}
+	}
+	if provider != nil {
+		if _, _, err := provider.GetCurrent(context.Background()); err != nil {
+			provider = nil
+		}
+	}
+	deps.KEKProvider = provider
+
+	s3Cfg := container.configuration.S3
+	var s3Client *s3.Client
+	if provider != nil && strings.TrimSpace(s3Cfg.Endpoint) != "" && strings.TrimSpace(s3Cfg.AccessKey) != "" && strings.TrimSpace(s3Cfg.SecretKey) != "" && strings.TrimSpace(s3Cfg.Bucket) != "" {
+		if client, err := s3.NewClient(strings.TrimSpace(s3Cfg.Endpoint), strings.TrimSpace(s3Cfg.AccessKey), strings.TrimSpace(s3Cfg.SecretKey), strings.TrimSpace(s3Cfg.Bucket)); err == nil {
+			s3Client = client
+			_ = client.EnsureBucket(context.Background(), "")
+			_ = client.EnsureBucket(context.Background(), strings.TrimSpace(container.configuration.S3.BucketProtected))
+			_ = client.SetBucketWebhookCreatedEvents(context.Background())
+			wh := fileshandler.NewWebhookHandler(
+				repository.NewItemRepository(container.databaseClient),
+				client,
+				provider,
+				strings.TrimSpace(container.configuration.S3.WebhookSecret),
+				strings.TrimSpace(container.configuration.S3.BucketProtected),
+			)
+			container.router.Post("/files/webhook-minio", wh.Handle)
+		}
+	}
+	deps.S3Client = s3Client
+	server := api.NewServer(deps)
+	return server
+}
+
+func CreateServerImplementationForTests(container *ApplicationContainer, tokenAuth *jwtauth.JWTAuth) api.ServerInterface {
+	deps := api.ServerDependencies{
+		Logger:                 container.logger,
+		DatabaseClient:         container.databaseClient,
+		TokenAuth:              tokenAuth,
+		AccessTokenTTLSeconds:  container.configuration.Auth.AccessTokenTTLSeconds,
+		RefreshTokenTTLSeconds: container.configuration.Auth.RefreshTokenTTLSeconds,
+		UsersRepository:        repository.NewUserRepository(container.databaseClient),
+		ItemsRepository:        repository.NewItemRepository(container.databaseClient),
+	}
+	provider := keyencrypt.NewStaticProvider(make([]byte, 32), 1)
+	deps.KEKProvider = provider
+
+	s3Cfg := container.configuration.S3
+	var s3Client *s3.Client
+	if strings.TrimSpace(s3Cfg.Endpoint) != "" && strings.TrimSpace(s3Cfg.AccessKey) != "" && strings.TrimSpace(s3Cfg.SecretKey) != "" && strings.TrimSpace(s3Cfg.Bucket) != "" {
+		if client, err := s3.NewClient(strings.TrimSpace(s3Cfg.Endpoint), strings.TrimSpace(s3Cfg.AccessKey), strings.TrimSpace(s3Cfg.SecretKey), strings.TrimSpace(s3Cfg.Bucket)); err == nil {
+			s3Client = client
+			_ = client.EnsureBucket(context.Background(), "")
+			_ = client.EnsureBucket(context.Background(), strings.TrimSpace(container.configuration.S3.BucketProtected))
+			_ = client.SetBucketWebhookCreatedEvents(context.Background())
+			wh := fileshandler.NewWebhookHandler(
+				repository.NewItemRepository(container.databaseClient),
+				client,
+				provider,
+				strings.TrimSpace(container.configuration.S3.WebhookSecret),
+				strings.TrimSpace(container.configuration.S3.BucketProtected),
+			)
+			container.router.Post("/files/webhook-minio", wh.Handle)
+		}
+	}
+	deps.S3Client = s3Client
+	return api.NewServer(deps)
+}
+
+func createJWTAuth(configuration AppConfig) (*jwtauth.JWTAuth, error) {
+	secret := strings.TrimSpace(configuration.Auth.JwtSecret)
+	if secret == "" {
+		return nil, fmt.Errorf("секрет для JWT не должен быть пустым")
+	}
+	return jwtauth.New("HS256", []byte(secret), nil), nil
 }

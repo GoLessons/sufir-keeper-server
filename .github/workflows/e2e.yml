@@ -1,0 +1,49 @@
+name: E2E Tests
+
+on:
+  pull_request:
+  push:
+    branches: [ "main", "master" ]
+
+jobs:
+  e2e-tests:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Generate dev TLS certs
+        run: |
+          chmod +x tools/tls/devcert.sh
+          tools/tls/devcert.sh
+
+      - name: Start services (TLS on nginx)
+        run: |
+          docker compose up -d --build
+          docker compose ps
+
+      - name: Wait for services to be ready (TLS)
+        run: |
+          # Wait for postgres
+          timeout 60s bash -c 'until docker compose exec -T postgres pg_isready -U keeper -d keeper; do echo "Waiting for postgres..."; sleep 2; done'
+          
+          # Wait for migrations to complete (migrate container exits successfully)
+          timeout 60s bash -c 'until [ "$(docker inspect -f "{{.State.Status}}" keeper-migrate 2>/dev/null)" == "exited" ] && [ "$(docker inspect -f "{{.State.ExitCode}}" keeper-migrate 2>/dev/null)" == "0" ]; do echo "Waiting for migrations..."; sleep 2; done'
+
+          # Wait for app via nginx HTTPS
+          timeout 60s bash -c 'until curl -s https://localhost:8443/api/v1/auth-verify --cacert ./.docker/nginx/certs/dev-ca.crt > /dev/null; do echo "Waiting for app (HTTPS)..."; sleep 2; done'
+
+      - name: Run E2E tests (HTTPS)
+        env:
+          CACERT_PATH: ./.docker/nginx/certs/dev-ca.crt
+        run: |
+          chmod +x tools/e2e.sh
+          ./tools/e2e.sh
+
+      - name: Stop services
+        if: always()
+        run: docker compose down
